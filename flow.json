@@ -1,0 +1,43 @@
+{
+  "nodes": [
+    {
+      "id": "node_0",
+      "type": "MessageTriggerNode",
+      "position": {
+        "x": 339.0052185058594,
+        "y": 143
+      },
+      "data": {
+        "type": "text",
+        "filter": "command",
+        "context": {
+          "value": "/help"
+        }
+      },
+      "width": 320,
+      "height": 343
+    },
+    {
+      "id": "node_1",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": 136.0820469628087,
+        "y": 772.8398393952912
+      },
+      "data": {
+        "messageText": "salom men ishlavomman"
+      },
+      "width": 320,
+      "height": 574
+    }
+  ],
+  "edges": [
+    {
+      "id": "reactflow__edge-node_0out-node_1",
+      "source": "node_0",
+      "target": "node_1",
+      "sourceHandle": "out",
+      "targetHandle": null
+    }
+  ]
+}
