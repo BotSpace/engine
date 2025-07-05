@@ -1,6 +1,6 @@
 # Loyiha Tahlili Hisoboti
 
-Sana: 2025-07-05 17:11:10
+Sana: 2025-07-06 02:48:44
 
 ## 📁 Fayl Strukturasi
 
@@ -14,7 +14,7 @@ Sana: 2025-07-05 17:11:10
 
 ```
 BOT_TOKEN = "8058205725:AAHiWbWdDl5jnwj_Eqz3NWY8m2itKATkkc8"
-NODE_FILE = "flow.json"
+FLOW_FILE_PATH = "nodes.json"
 ```
 
 ### 📄 .gitignore
@@ -288,449 +288,513 @@ pyrightconfig.json
 
 ```md
 # engine
-
 ```
 
-### 📄 app/__init__.py
+### 📄 app/**init**.py
 
 ```py
 
 ```
 
-### 📄 app/_executor.py
+### 📄 app/engine/**init**.py
 
 ```py
+
+```
+
+### 📄 app/engine/executors/**init**.py
+
+```py
+# app/engine/executors/__init__.py
 import logging
 from aiogram import Bot
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
-from aiogram.utils.keyboard import (
-    InlineKeyboardBuilder,
-    ReplyKeyboardBuilder,
-    KeyboardButton,
-    InlineKeyboardButton,
-)
+from typing import Dict, Any, Type
 
-class FlowExecutor:
-    """
-    JSON sxemani qabul qilib, uni Telegram bot logikasi sifatida
-    bajaradigan (interpretatsiya qiladigan) asosiy dvijok klassi.
-    """
-
-    def __init__(self, flow_data: dict, bot_instance: Bot):
-        """
-        Dvijokni sxema ma'lumotlari va bot obyekti bilan ishga tushiradi.
-        """
-        self.flow_data = flow_data
-        self.nodes = {node['id']: node for node in self.flow_data.get('nodes', [])}
-        self.edges = self._prepare_edges(self.flow_data.get('edges', []))
-        self.bot = bot_instance
-        logging.info(f"Dvijok {len(self.nodes)} ta node va {len(self.edges)} ta yo'nalish bilan ishga tushdi.")
-
-    def _prepare_edges(self, edges_list: list[dict]) -> dict[str, list]:
-        """Qirralarni (edges) tezkor qidirish uchun lug'atga o'tkazadi."""
-        edges_map = {}
-        for edge in edges_list:
-            source_id = edge['source']
-            if source_id not in edges_map:
-                edges_map[source_id] = []
-            edges_map[source_id].append(edge)
-        return edges_map
-
-    # --- TRIGGER HANDLER'LAR ---
-
-    async def start_flow_from_message(self, message: Message):
-        """Kiruvchi Message'ni qabul qilib, mos triggerdan sxemani boshlaydi."""
-        trigger_node = self._find_trigger_for_message(message)
-        if not trigger_node:
-            logging.warning(f"Message uchun mos trigger topilmadi: {message.text}")
-            return
-
-        logging.info(f"Message trigger topildi: {trigger_node['id']}. Sxemani boshlaymiz...")
-        await self._traverse_flow(trigger_node, message)
-
-    async def start_flow_from_callback(self, callback: CallbackQuery):
-        """Kiruvchi CallbackQuery'ni qabul qilib, mos triggerdan sxemani boshlaydi."""
-        trigger_node = self._find_trigger_for_callback(callback)
-        if not trigger_node:
-            logging.warning(f"Callback uchun mos trigger topilmadi: {callback.data}")
-            await callback.answer("Bu tugma uchun amal belgilanmagan.", show_alert=True)
-            return
-
-        logging.info(f"Callback trigger topildi: {trigger_node['id']}. Sxemani boshlaymiz...")
-        await callback.answer()  # Foydalanuvchi ekranidagi soat belgisini yo'qotish uchun
-        await self._traverse_flow(trigger_node, callback)
-
-    # --- TRIGGER QIDIRISH METODLARI ---
-
-    def _find_trigger_for_message(self, message: Message) -> dict | None:
-        """Berilgan Message'ga mos keluvchi birinchi trigger node'ni qidiradi."""
-        if not message.text:
-            return None
-        message_text = message.text
-
-        for node in self.nodes.values():
-            if node.get('type') == 'MessageTriggerNode':
-                data = node.get('data', {})
-                context_value = data.get('context', {}).get('value')
-                filter_type = data.get('filter')
-
-                if filter_type == 'command' and message_text == context_value:
-                    return node
-                # --- YANGI QATOR ---
-                if filter_type == 'equals' and message_text == context_value:
-                    return node
-        return None
-
-    def _find_trigger_for_callback(self, callback: CallbackQuery) -> dict | None:
-        """Berilgan CallbackQuery'ga mos keluvchi trigger node'ni qidiradi."""
-        callback_data_to_find = callback.data
-        for node in self.nodes.values():
-            # Sxemada callback triggerlari uchun 'ButtonTriggerNode' ishlatamiz
-            if node.get('type') == 'ButtonTriggerNode':
-                data = node.get('data', {})
-                if data.get('callback_data') == callback_data_to_find:
-                    return node
-        return None
-
-    # --- ASOSIY SXEMA MANTIQI ---
-
-    async def _traverse_flow(self, current_node: dict, trigger_event: Message | CallbackQuery):
-        """Sxema bo'ylab yuradi va har bir node amalini bajaradi."""
-        if isinstance(trigger_event, Message):
-            chat_id = trigger_event.chat.id
-        elif isinstance(trigger_event, CallbackQuery):
-            chat_id = trigger_event.message.chat.id
-        else:
-            logging.error(f"Noma'lum trigger turi: {type(trigger_event)}")
-            return
-        
-        while current_node:
-            logging.info(f"Bajarilmoqda: Node ID {current_node['id']}, Turi: {current_node['type']}")
-            await self._execute_node_action(current_node, chat_id, trigger_event)
-
-            outgoing_edges = self.edges.get(current_node['id'], [])
-            if not outgoing_edges:
-                logging.info("Sxema tugadi. Keyingi yo'nalish yo'q.")
-                break
-            
-            # Hozircha shartsiz, faqat birinchi yo'nalish bo'ylab ketamiz.
-            # Kelajakda ConditionNode uchun bu yerda mantiq murakkablashadi.
-            next_edge = outgoing_edges[0]
-            current_node = self.nodes.get(next_edge['target'])
-            if not current_node:
-                logging.error(f"Xatolik: Edge {next_edge.get('id')} ko'rsatgan node {next_edge.get('target')} topilmadi.")
-                break
-
-    # --- NODE AMALLARINI BAJARISH ---
-
-    async def _execute_node_action(self, node: dict, chat_id: int, trigger_event: Message | CallbackQuery):
-        node_type = node.get('type')
-        data = node.get('data', {})
-
-        if node_type == 'SendTextMessageNode':
-            text_to_send = data.get('messageText', '[Xabar matni topilmadi]')
-            
-            # --- YAXSHILANGAN QISM ---
-            # Agar 'buttons' maydoni bo'lsa va u bo'sh bo'lsa, klaviaturani o'chiramiz.
-            if 'buttons' in data and not data['buttons']:
-                keyboard = ReplyKeyboardRemove()
-            else:
-                keyboard = self._build_keyboard(data.get('buttons'))
-
-            await self.bot.send_message(
-                chat_id=chat_id,
-                text=text_to_send,
-                reply_markup=keyboard
-            )
-            # --- YAXSHILANGAN QISM TUGADI ---
-    
-    # --- YORDAMCHI METODLAR ---
-
-    def _build_keyboard(self, buttons_data: list[list[dict]]):
-        """
-        JSON sxemadagi tugmalar massividan aiogram KeyboardMarkup obyektini yasaydi.
-        """
-        if not buttons_data or not buttons_data[0]:
-            return None # Bu yerda None qaytaramiz, _execute_node_action buni to'g'ri ishlaydi
-
-
-        # Klaviatura turini birinchi tugmaning tipiga qarab aniqlaymiz.
-        # Haqiqiy loyihada 'inline' va 'reply' birga kelmasligini tekshirish kerak.
-        first_button_type = buttons_data[0][0].get('type')
-
-        if first_button_type in ['url', 'callback']:
-            builder = InlineKeyboardBuilder()
-            for row in buttons_data:
-                row_buttons = []
-                for button_config in row:
-                    text = button_config.get('text', '')
-                    btn_type = button_config.get('type')
-                    value = button_config.get('value', '')
-
-                    if btn_type == 'url' and value:
-                        row_buttons.append(InlineKeyboardButton(text=text, url=value))
-                    elif btn_type == 'callback' and value:
-                        row_buttons.append(InlineKeyboardButton(text=text, callback_data=value))
-                if row_buttons:
-                    builder.row(*row_buttons)
-            return builder.as_markup()
-        
-        elif first_button_type in ['reply', 'request_contact', 'request_location']:
-            builder = ReplyKeyboardBuilder()
-            for row in buttons_data:
-                row_buttons = []
-                for button_config in row:
-                    text = button_config.get('text', '')
-                    btn_type = button_config.get('type')
-                    
-                    if btn_type == 'reply':
-                        row_buttons.append(KeyboardButton(text=text))
-                    elif btn_type == 'request_contact':
-                        row_buttons.append(KeyboardButton(text=text, request_contact=True))
-                    elif btn_type == 'request_location':
-                        row_buttons.append(KeyboardButton(text=text, request_location=True))
-                if row_buttons:
-                    builder.row(*row_buttons)
-            return builder.as_markup(resize_keyboard=True)
-
-        return None
-```
-
-### 📄 app/engine/__init__.py
-
-```py
-
-```
-
-### 📄 app/engine/context.py
-
-```py
-
-```
-
-### 📄 app/engine/engine.py
-
-```py
-# app/engine/engine.py
-
-import logging
-from aiogram import Bot
-from aiogram.types import Message, CallbackQuery
-
-from .loader import SchemaLoader
-from .triggers import TriggerFinder
-from .executors import NodeExecutor
-# Hali yaratilmagan, lekin kelajak uchun reja
-# from .navigator import FlowNavigator
-# from .context import ExecutionContext
-
-class FlowEngine:
-    def __init__(self, bot: Bot, flow_file_path: str):
-        self.bot = bot
-        # 1. Sxemani yuklaymiz
-        schema = SchemaLoader(flow_file_path)
-        self.nodes = schema.nodes
-        self.edges = schema.edges
-
-        # 2. Yordamchi komponentlarni yaratamiz
-        self.trigger_finder = TriggerFinder(list(self.nodes.values()))
-        self.node_executor = NodeExecutor(bot)
-        # self.navigator = FlowNavigator(self.edges) # Kelajakda
-
-    async def handle_message(self, message: Message):
-        """Kiruvchi xabarga ishlov beradi."""
-        start_node = self.trigger_finder.find_for_message(message)
-        if start_node:
-            await self._traverse_flow(start_node, message.chat.id)
-        else:
-            logging.warning(f"Message uchun trigger topilmadi: '{message.text}'")
-
-    async def handle_callback(self, callback: CallbackQuery):
-        """Kiruvchi callback'ga ishlov beradi."""
-        start_node = self.trigger_finder.find_for_callback(callback)
-        if start_node:
-            await callback.answer()
-            await self._traverse_flow(start_node, callback.message.chat.id)
-        else:
-            logging.warning(f"Callback uchun trigger topilmadi: '{callback.data}'")
-            await callback.answer("Bu tugma uchun amal topilmadi.", show_alert=True)
-
-    async def _traverse_flow(self, current_node: dict, chat_id: int):
-        """Sxema bo'ylab yuradi (hozircha shartsiz)."""
-        while current_node:
-            await self.node_executor.execute(current_node, chat_id)
-
-            # --- KELAJAKDA BU QISM FlowNavigator'ga O'TADI ---
-            outgoing_edges = self.edges.get(current_node['id'], [])
-            if not outgoing_edges:
-                logging.info(f"Sxema tugadi (ID: {current_node['id']}).")
-                break
-
-            # Hozircha faqat birinchi yo'nalish
-            next_edge = outgoing_edges[0]
-            current_node = self.nodes.get(next_edge['target'])
-            if not current_node:
-                logging.error(f"Target node topilmadi: {next_edge.get('target')}")
-                break
-```
-
-### 📄 app/engine/executors.py
-
-```py
-# app/engine/executors.py
-
-import logging
-from typing import Dict
-from aiogram import Bot
-from aiogram.types import ReplyKeyboardRemove
-# Yordamchi keyboard builder'ni ham alohida modulga chiqaramiz
-from .utils import build_keyboard
-
-class NodeExecutionError(Exception):
-    pass
+from app.engine.handlers.base import ActionHandler
+from app.engine.handlers.custom_handlers import CustomCodeHandler
+from app.engine.handlers.media_handlers import SendAudioHandler, SendFileHandler, SendPhotoHandler, SendVideoHandler
+from app.engine.handlers.message_handlers import SendTextHandler
 
 class NodeExecutor:
+    """
+    Action turidagi node'larni ularning turiga qarab to'g'ri "handler"ga yuboruvchi dispetcher.
+    Bu klassni yangi action'lar qo'shish uchun o'zgartirish shart emas (Open/Closed Principle).
+    Faqatgina _handlers lug'atiga yangi yozuv qo'shiladi.
+    """
     def __init__(self, bot: Bot):
         self.bot = bot
-        # Kelajakda bu yerga boshqa turdagi node'lar uchun "handler"lar qo'shiladi
-        self._handlers = {
-            'SendTextMessageNode': self._handle_send_text_message
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+        self._handlers: Dict[str, Type[ActionHandler]] = {
+            "SendTextMessageNode": SendTextHandler,
+            "SendPhotoNode": SendPhotoHandler,
+            "SendVideoNode": SendVideoHandler,
+            "SendAudioNode": SendAudioHandler,
+            "SendFileNode": SendFileHandler,
+            "CustomCodeNode": CustomCodeHandler,
         }
 
-    async def execute(self, node: Dict, chat_id: int):
-        """Node'ni uning turiga qarab bajaradi."""
+    async def execute(self, node: Dict[str, Any], chat_id: int):
         node_type = node.get('type')
-        handler = self._handlers.get(node_type)
+        handler_class = self._handlers.get(node_type)
 
-        if not handler:
-            logging.warning(f"Node turi uchun bajaruvchi (handler) topilmadi: {node_type}")
+        if not handler_class:
+            self.logger.warning(f"Node turi uchun bajaruvchi (handler) topilmadi: {node_type}")
             return
 
         try:
-            logging.info(f"Bajarilmoqda: Node ID {node.get('id')}, Turi: {node_type}")
-            await handler(node.get('data', {}), chat_id)
+            handler_instance = handler_class(self.bot)
+            await handler_instance.handle(node.get('data', {}), chat_id)
         except Exception as e:
-            raise NodeExecutionError(f"Node {node.get('id')} bajarilishida xatolik: {e}")
+            self.logger.error(
+                f"Node (ID: {node.get('id')}, Turi: {node_type}) bajarilishida kutilmagan xatolik: {e}",
+                exc_info=True
+            )
 
-    # --- HANDLER METODLARI ---
-    # Har bir handler faqat o'ziga kerakli 'data' va 'chat_id' ni oladi
-    async def _handle_send_text_message(self, data: Dict, chat_id: int):
-        """SendTextMessageNode uchun logikani bajaradi."""
-        text_to_send = data.get('messageText', '[Xabar matni topilmadi]')
+```
 
-        if 'buttons' in data and not data['buttons']:
-            keyboard = ReplyKeyboardRemove()
+### 📄 app/engine/flow_controller.py
+
+```py
+# app/engine/flow_controller.py
+
+import logging
+from aiogram import Bot
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, CallbackQuery, Update
+
+from .fsm import FlowState
+from .loader import SchemaLoader
+from .executors import NodeExecutor
+from .state_manager import StateManager
+
+class FlowController:
+    def __init__(self, bot: Bot, schema_path: str):
+        self.bot = bot
+        self.schema = SchemaLoader(schema_path)
+        self.executor = NodeExecutor(bot)
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    async def handle_update(self, event: Message | CallbackQuery, fsm_context: FSMContext):
+        state_manager = StateManager(fsm_context)
+        current_state = await fsm_context.get_state()
+
+        # --- XATO TUZATILGAN QISM ---
+        # Ob'ekt tipini `isinstance` yordamida tekshiramiz
+        chat_id = None
+        if isinstance(event, Message):
+            chat_id = event.chat.id
+        elif isinstance(event, CallbackQuery):
+            chat_id = event.message.chat.id
+
+        if chat_id is None:
+            self.logger.warning(f"Update turidan chat_id aniqlanmadi: {type(event)}")
+            return
+        # --- TUZATISH TUGADI ---
+
+        self.logger.info(f"CHAT_ID={chat_id}: Yangi event qabul qilindi. Holat: {current_state}")
+
+        if current_state == FlowState.waiting_for_trigger:
+            node_id_to_check = await state_manager.get_waiting_node_id()
+            trigger_node = self.schema.get_node(node_id_to_check)
+
+            if trigger_node and self._check_trigger(trigger_node, event):
+                self.logger.info(f"CHAT_ID={chat_id}: Kutilgan trigger ({node_id_to_check}) ishga tushdi.")
+                await fsm_context.clear()
+                await self._traverse(trigger_node, chat_id, fsm_context)
+            else:
+                self.logger.debug(f"CHAT_ID={chat_id}: Event kutilgan triggerga ({node_id_to_check}) mos kelmadi.")
         else:
-            keyboard = build_keyboard(data.get('buttons')) # utils.py dan chaqiramiz
+            for trigger_node in self.schema.root_triggers:
+                if self._check_trigger(trigger_node, event):
+                    self.logger.info(f"CHAT_ID={chat_id}: Yangi ssenariy boshlandi (Root Trigger: {trigger_node['id']})")
+                    await self._traverse(trigger_node, chat_id, fsm_context)
+                    return
+
+    async def _traverse(self, trigger_node: dict, chat_id: int, fsm_context: FSMContext):
+        state_manager = StateManager(fsm_context)
+        # Boshlang'ich nuqta - triggerdan keyingi node'lar
+        nodes_to_process = self.schema.get_next_nodes(trigger_node['id'])
+
+        while nodes_to_process:
+            node = nodes_to_process.pop(0)
+            node_type = node.get('type', '')
+
+            if 'Trigger' in node_type:
+                self.logger.info(f"CHAT_ID={chat_id}: To'xtab, triggerni kutmoqdamiz (ID: {node['id']})")
+                await state_manager.set_wait_for_trigger(node['id'])
+                return
+
+            elif 'Node' in node_type:
+                await self.executor.execute(node, chat_id)
+                nodes_to_process.extend(self.schema.get_next_nodes(node['id']))
+
+        self.logger.info(f"CHAT_ID={chat_id}: Ssenariy shoxi tugadi. Holat tozalanmoqda.")
+        await state_manager.clear_state()
+
+
+    def _check_trigger(self, trigger_node: dict, event: Message | CallbackQuery) -> bool:
+        data, node_type = trigger_node.get('data', {}), trigger_node.get('type')
+
+        # --- 1-holat: MessageTriggerNode (matn, kontakt, lokatsiya va hk uchun) ---
+        if node_type == 'MessageTriggerNode' and isinstance(event, Message):
+            # Trigger qanday kontent turini kutayotganini aniqlaymiz
+            expected_content_type = data.get('type') # 'text', 'contact', 'location'
+
+            # 1a: Matn kutilganda (buyruq yoki oddiy matn)
+            if expected_content_type == 'text' and event.text:
+                filter_type = data.get('filter') # 'command', 'any'
+                if filter_type == 'command':
+                    expected_command = data.get('context', {}).get('value')
+                    return event.text == expected_command
+                elif filter_type == 'any':
+                    return True # Har qanday matn kelsa, True
+
+            # 1b: Kontakt kutilganda
+            elif expected_content_type == 'contact' and event.contact:
+                return True # Har qanday kontakt kelsa, True
+
+            # 1c: Lokatsiya kutilganda
+            elif expected_content_type == 'location' and event.location:
+                return True # Har qanday lokatsiya kelsa, True
+
+        # --- 2-holat: ReplyButtonTriggerNode (FAQAT matnli tugmalar uchun) ---
+        elif node_type == 'ReplyButtonTriggerNode' and isinstance(event, Message) and event.text:
+            # Trigger qaysi matn(lar)ni kutayotganini aniqlaymiz
+            expected_buttons = data.get('selectedButtons', [])
+            # Kelgan matn kutilayotgan matnlar ro'yxatida bo'lsa, True
+            return event.text in expected_buttons
+
+        # --- 3-holat: CallbackQueryTriggerNode (inline tugmalar uchun) ---
+        # Kelajakda to'ldiriladi
+        elif node_type in ['CallbackButtonTriggerNode', 'CallbackQueryTriggerNode'] and isinstance(event, CallbackQuery):
+            # Bu yerda `event.data` ni tekshirish logikasi bo'ladi
+            pass
+
+        # Agar hech qaysi shart bajarilmasa
+        return False
+
+```
+
+### 📄 app/engine/fsm.py
+
+```py
+from aiogram.fsm.state import State, StatesGroup
+
+class FlowState(StatesGroup):
+    waiting_for_trigger = State()
+```
+
+### 📄 app/engine/handlers/**init**.py
+
+```py
+
+```
+
+### 📄 app/engine/handlers/base.py
+
+```py
+import logging
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Union, Optional
+
+from aiogram import Bot
+from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
+
+# Bu funksiya sizning utils.py faylingizda deb hisoblaymiz
+from app.engine.utils import build_keyboard
+
+class ActionHandler(ABC):
+    """
+    Barcha Action Node handler'lari uchun abstrakt baza klassi (interfeys).
+    Har bir handler shu klassdan meros oladi va o'zining `handle` metodini implementatsiya qiladi.
+    Bu Liskov Substitution Principle (SOLID'ning 'L' harfi) uchun muhim.
+    """
+    def __init__(self, bot: Bot):
+        self.bot = bot
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    @abstractmethod
+    async def handle(self, data: Dict[str, Any], chat_id: int):
+        """
+        Har bir handler ushbu metodni o'ziga xos tarzda implementatsiya qilishi SHART.
+        :param data: Node'ning `data` maydonidagi ma'lumotlar.
+        :param chat_id: Xabar yuboriladigan chat ID.
+        """
+        raise NotImplementedError
+
+    def _prepare_common_params(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Ko'pchilik `send_*` metodlari uchun umumiy bo'lgan parametrlarni tayyorlaydi.
+        Bu kod takrorlanishining oldini oladi (DRY tamoyili).
+        """
+        buttons: Optional[list[list[dict]]] = data.get('buttons')
+
+        # `build_keyboard` funksiyasi ReplyKeyboardRemove qaytarishi mumkin,
+        # shuning uchun reply_markup None bo'lmasligi kerak
+        reply_markup: Optional[Union[InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove]] = build_keyboard(buttons)
+
+        params = {}
+        if reply_markup is not None:
+            params['reply_markup'] = reply_markup
+
+        if data.get('disableNotification'):
+            params['disable_notification'] = True
+
+        if data.get('protectContent'):
+            params['protect_content'] = True
+
+        return params
+```
+
+### 📄 app/engine/handlers/custom_handlers.py
+
+```py
+# app/engine/executors/custom_handlers.py
+from typing import Dict, Any
+from .base import ActionHandler
+
+class CustomCodeHandler(ActionHandler):
+    """CustomCodeNode'ni xavfsiz tarzda bajarish uchun mas'ul."""
+
+    async def handle(self, data: Dict[str, Any], chat_id: int):
+        python_code = data.get('pythonCode', '')
+        if not python_code:
+            self.logger.warning("CustomCodeNode'da bajarish uchun kod yo'q.")
+            return
+
+        self.logger.info(f"CustomCodeNode'ning kodini bajarishga harakat qilinmoqda (chat_id: {chat_id})")
+
+        # DIQQAT: `exec()` funksiyasini to'g'ridan-to'g'ri ishlatish O'TA XAVFLI!
+        # Bu yerda maxsus xavfsiz "sandbox" (qum qutisi) muhiti yaratish kerak.
+        # Buning uchun restrictedpython, Piston API kabi kutubxonalardan foydalanish mumkin.
+        # Hozircha, biz bu amaliyotning xavfliligini ko'rsatish uchun faqat log yozamiz.
+
+        self.logger.critical("XAVFSIZLIK OGOHLANTIRISHI: Custom code execution (exec) implementatsiya qilinmagan.")
+        # Misol:
+        # try:
+        #     # Sandbox'da kodni bajarish logikasi...
+        # except Exception as e:
+        #     self.logger.error(f"Custom code'ni bajarishda xatolik: {e}")
+```
+
+### 📄 app/engine/handlers/media_handlers.py
+
+```py
+# app/engine/executors/media_handlers.py
+from typing import Dict, Any
+from .base import ActionHandler
+
+class SendPhotoHandler(ActionHandler):
+    """SendPhotoNode'ni bajarish uchun mas'ul."""
+
+    async def handle(self, data: Dict[str, Any], chat_id: int):
+        source_type = data.get('photoSourceType', 'url')
+        photo_id = data.get('photoFileId' if source_type == 'file_id' else 'photoUrl')
+
+        if not photo_id:
+            self.logger.error(f"Node data'da 'photoFileId' yoki 'photoUrl' topilmadi. Ma'lumot: {data}")
+            return
+
+        params = self._prepare_common_params(data)
+
+        caption = data.get('caption')
+        if caption:
+            params['caption'] = caption
+
+        await self.bot.send_photo(
+            chat_id=chat_id,
+            photo=photo_id,
+            **params
+        )
+
+
+class SendVideoHandler(ActionHandler):
+    """SendVideoNode'ni bajarish uchun mas'ul."""
+
+    async def handle(self, data: Dict[str, Any], chat_id: int):
+        source_type = data.get('videoSourceType', 'url')
+        video_id = data.get('videoFileId' if source_type == 'file_id' else 'videoUrl')
+
+        if not video_id:
+            self.logger.error(f"Node data'da 'videoFileId' yoki 'videoUrl' topilmadi. Ma'lumot: {data}")
+            return
+
+        params = self._prepare_common_params(data)
+
+        # Videoga xos parametrlarni qo'shamiz
+        if data.get('caption'): params['caption'] = data.get('caption')
+        if data.get('width'): params['width'] = int(data['width'])
+        if data.get('height'): params['height'] = int(data['height'])
+        if data.get('duration'): params['duration'] = int(data['duration'])
+        if data.get('supportsStreaming'): params['supports_streaming'] = True
+
+        await self.bot.send_video(
+            chat_id=chat_id,
+            video=video_id,
+            **params
+        )
+
+# Xuddi shu tarzda SendAudioHandler va SendFileHandler ham yoziladi...
+class SendAudioHandler(ActionHandler):
+    """SendAudioNode'ni bajarish uchun mas'ul."""
+    async def handle(self, data: Dict[str, Any], chat_id: int):
+        # ... Audio uchun logikani implementatsiya qilish ...
+        pass
+
+class SendFileHandler(ActionHandler):
+    """SendFileNode'ni bajarish uchun mas'ul."""
+    async def handle(self, data: Dict[str, Any], chat_id: int):
+        # ... Fayl (document) uchun logikani implementatsiya qilish ...
+        pass
+```
+
+### 📄 app/engine/handlers/message_handlers.py
+
+```py
+# app/engine/executors/message_handlers.py
+from typing import Dict, Any
+from .base import ActionHandler
+
+class SendTextHandler(ActionHandler):
+    """SendTextMessageNode'ni bajarish uchun mas'ul."""
+
+    async def handle(self, data: Dict[str, Any], chat_id: int):
+        text = data.get('messageText', '[Matn ko\'rsatilmagan]')
+
+        params = self._prepare_common_params(data)
+
+        # Qo'shimcha, faqat shu node'ga xos parametrlar
+        if 'parseMode' in data and data['parseMode'] != 'None':
+            params['parse_mode'] = data['parseMode']
+
+        if 'disableWebPagePreview' in data:
+            params['disable_web_page_preview'] = data['disableWebPagePreview']
 
         await self.bot.send_message(
             chat_id=chat_id,
-            text=text_to_send,
-            reply_markup=keyboard
+            text=text,
+            **params
         )
-
-# Yordamchi funksiyalarni utils.py ga chiqaramiz
-# app/engine/utils.py
-# ... _build_keyboard funksiyasining kodi shu yerda bo'ladi ...
 ```
 
 ### 📄 app/engine/loader.py
 
 ```py
 import json
-from typing import Dict, List
-
-class SchemaError(Exception):
-    """Sxemadagi xatoliklar uchun maxsus exception."""
-    pass
+import logging
+from typing import Dict, List, Any
 
 class SchemaLoader:
-    def __init__(self, flow_file_path: str):
-        self.flow_file_path = flow_file_path
+    def __init__(self, file_path: str):
         self.nodes: Dict[str, Dict] = {}
         self.edges: Dict[str, List[Dict]] = {}
-        self._load_and_validate()
+        self.root_triggers: List[Dict] = []
+        self._load(file_path)
 
-    def _load_and_validate(self):
-        """Faylni yuklaydi va oddiy validatsiyadan o'tkazadi."""
+    def _load(self, file_path: str):
         try:
-            with open(self.flow_file_path, 'r', encoding='utf-8') as f:
-                flow_data = json.load(f)
-        except FileNotFoundError:
-            raise SchemaError(f"Sxema fayli topilmadi: {self.flow_file_path}")
-        except json.JSONDecodeError:
-            raise SchemaError(f"Sxema fayli yaroqsiz JSON formatida: {self.flow_file_path}")
+            with open(file_path, 'r', encoding='utf-8') as f: data = json.load(f)
+            all_nodes, all_edges = data.get('nodes', []), data.get('edges', [])
+            self.nodes = {node['id']: node for node in all_nodes}
+            for edge in all_edges:
+                self.edges.setdefault(edge['source'], []).append(edge)
 
-        # Validatsiya (KISS - oddiy va tushunarli)
-        if 'nodes' not in flow_data or 'edges' not in flow_data:
-            raise SchemaError("Sxemada 'nodes' yoki 'edges' maydonlari mavjud emas.")
+            target_node_ids = {edge['target'] for edge in all_edges}
+            self.root_triggers = [
+                node for node in all_nodes
+                if 'Trigger' in node.get('type', '') and node['id'] not in target_node_ids
+            ]
+            logging.info(f"Sxema yuklandi: {len(self.nodes)} node, {len(all_edges)} edge, {len(self.root_triggers)} root trigger.")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logging.critical(f"Sxema faylini yuklashda xatolik: {e}")
+            raise
 
-        # DRY - kod takrorlanishini oldini olish
-        self.nodes = self._prepare_nodes(flow_data.get('nodes', []))
-        self.edges = self._prepare_edges(flow_data.get('edges', []))
-
-    @staticmethod
-    def _prepare_nodes(nodes_list: List[Dict]) -> Dict[str, Dict]:
-        """Node'larni tezkor qidirish uchun lug'atga o'tkazadi."""
-        return {node['id']: node for node in nodes_list}
-
-    @staticmethod
-    def _prepare_edges(edges_list: List[Dict]) -> Dict[str, List[Dict]]:
-        """Qirralarni (edges) source_id bo'yicha guruhlaydi."""
-        edges_map = {}
-        for edge in edges_list:
-            source_id = edge['source']
-            if source_id not in edges_map:
-                edges_map[source_id] = []
-            edges_map[source_id].append(edge)
-        return edges_map
+    def get_node(self, node_id: str) -> Dict | None: return self.nodes.get(node_id)
+    def get_next_nodes(self, source_node_id: str) -> List[Dict]:
+        return [self.get_node(edge['target']) for edge in self.edges.get(source_node_id, []) if self.get_node(edge['target'])]
 ```
 
-### 📄 app/engine/navigator.py
+### 📄 app/engine/node_executor.py
 
 ```py
+# app/engine/node_executor.py
+import logging
+from aiogram import Bot
+from typing import Dict, Any
+from app.engine.utils import build_keyboard
 
+class NodeExecutor:
+    """Berilgan node'ning amalini bajarish uchun mas'ul."""
+
+    def __init__(self, bot: Bot):
+        self.bot = bot
+        # Har bir Action node turi uchun alohida metod
+        self._handlers = {
+            "SendTextMessageNode": self._execute_send_text,
+            "SendPhotoNode": self._execute_send_photo,
+            # ... boshqa action turlari uchun metodlar ...
+        }
+
+    async def execute(self, node: Dict, chat_id: int):
+        node_type = node.get('type')
+        handler = self._handlers.get(node_type)
+        if handler:
+            logging.info(f"CHAT_ID={chat_id}: Bajarilmoqda -> {node_type} (ID: {node['id']})")
+            await handler(node.get('data', {}), chat_id)
+        else:
+            logging.warning(f"CHAT_ID={chat_id}: {node_type} uchun bajaruvchi topilmadi. O'tkazib yuborildi.")
+
+    # --- Action Handler Metodlari ---
+
+    async def _execute_send_text(self, data: Dict[str, Any], chat_id: int):
+        text = data.get('messageText', '[Matn topilmadi]')
+        buttons = data.get('buttons')
+        # Bu yerda `disable_web_page_preview`, `parse_mode` kabilarni ham
+        # `data` dan olib, `send_message`ga uzatish mumkin.
+        await self.bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=build_keyboard(buttons)
+        )
+
+    async def _execute_send_photo(self, data: Dict[str, Any], chat_id: int):
+        # photoSourceType ga qarab file_id yoki url ishlatiladi.
+        photo_id = data.get('photoFileId') or data.get('photoUrl')
+        if not photo_id:
+            logging.error("SendPhotoNode uchun photoFileId yoki photoUrl topilmadi.")
+            return
+
+        caption = data.get('caption', '')
+        buttons = data.get('buttons')
+        await self.bot.send_photo(
+            chat_id=chat_id,
+            photo=photo_id,
+            caption=caption,
+            reply_markup=build_keyboard(buttons)
+        )
 ```
 
-### 📄 app/engine/triggers.py
+### 📄 app/engine/state_manager.py
 
 ```py
-from typing import Dict, Optional, List
-from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.context import FSMContext
+from app.engine.fsm import FlowState
 
-class TriggerFinder:
-    def __init__(self, nodes: List[Dict]):
-        # Faqat trigger node'larni saqlab olamiz, optimizatsiya uchun
-        self.trigger_nodes = [node for node in nodes if 'Trigger' in node.get('type', '')]
+class StateManager:
+    def __init__(self, fsm_context: FSMContext):
+        self.context = fsm_context
 
-    def find_for_message(self, message: Message) -> Optional[Dict]:
-        """Berilgan Message'ga mos keluvchi trigger'ni qidiradi."""
-        if not message.text:
-            return None
-        message_text = message.text
+    async def set_wait_for_trigger(self, node_id: str):
+        await self.context.set_state(FlowState.waiting_for_trigger)
+        await self.context.update_data(waiting_for_node_id=node_id)
 
-        for node in self.trigger_nodes:
-            if node.get('type') == 'MessageTriggerNode':
-                data = node.get('data', {})
-                context_value = data.get('context', {}).get('value')
-                filter_type = data.get('filter')
+    async def get_waiting_node_id(self) -> str | None:
+        data = await self.context.get_data()
+        return data.get("waiting_for_node_id")
 
-                # Bu yerni kelajakda murakkablashtirish mumkin
-                if filter_type == 'command' and message_text == context_value:
-                    return node
-                if filter_type == 'equals' and message_text == context_value:
-                    return node
-        return None
-
-    def find_for_callback(self, callback: CallbackQuery) -> Optional[Dict]:
-        """Berilgan CallbackQuery'ga mos keluvchi trigger'ni qidiradi."""
-        callback_data = callback.data
-        for node in self.trigger_nodes:
-            if node.get('type') == 'ButtonTriggerNode':
-                data = node.get('data', {})
-                if data.get('callback_data') == callback_data:
-                    return node
-        return None
+    async def clear_state(self):
+        await self.context.clear()
 ```
 
 ### 📄 app/engine/utils.py
@@ -746,286 +810,811 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
-def build_keyboard(
-    buttons_data: Optional[List[List[Dict]]]
-) -> Optional[Union[InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove]]:
-    """
-    JSON sxemadagi tugmalar massividan aiogram KeyboardMarkup obyektini yasaydi.
+def build_keyboard(buttons_data: Optional[List[List[Dict]]]) -> Optional[Union[InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove]]:
+    if buttons_data is None: return None
+    if not buttons_data: return ReplyKeyboardRemove()
+    if not any(row for row in buttons_data): return None
 
-    Bu funksiya SOLID tamoyillariga mos ravishda bitta vazifani bajaradi:
-    ma'lumotlar strukturasini aiogram obyektiga o'girish.
-
-    Args:
-        buttons_data: Qatorlar va tugmalardan iborat list.
-                      Masalan: [[{'text': 'Btn1'}, {'text': 'Btn2'}], [{'text': 'Btn3'}]]
-
-    Returns:
-        - aiogram klaviatura obyekti (InlineKeyboardMarkup yoki ReplyKeyboardMarkup).
-        - Agar `buttons_data` bo'sh list (`[]`) bo'lsa, ReplyKeyboardRemove.
-        - Agar `buttons_data` None yoki bo'sh qatorlardan iborat bo'lsa, None.
-    """
-    if buttons_data is None:
-        return None
-    
-    # Agar bo'sh list uzatilsa, bu klaviaturani o'chirish kerakligini bildiradi.
-    if not buttons_data:
-        return ReplyKeyboardRemove()
-    
-    # Agar ichidagi list bo'sh bo'lsa, hech qanday klaviatura kerak emas.
-    if not any(buttons_data):
-        return None
-
-    # Klaviatura turini birinchi tugmaning tipiga qarab aniqlaymiz.
-    # Bu yondashuv (KISS) oddiy, lekin kelajakda inline va reply
-    # tugmalarining birga kelmasligini tekshirish uchun validatsiya qo'shish mumkin.
     try:
         first_button_type = buttons_data[0][0].get('type')
     except (IndexError, AttributeError):
-        # Tugmalar strukturasi noto'g'ri bo'lsa
         return None
 
     if first_button_type in ['url', 'callback']:
-        return _build_inline_keyboard(buttons_data)
-    
+        builder = InlineKeyboardBuilder()
+        for row in buttons_data:
+            buttons = [
+                InlineKeyboardButton(text=btn['text'], url=btn.get('value')) if btn['type'] == 'url'
+                else InlineKeyboardButton(text=btn['text'], callback_data=str(btn.get('value')))
+                for btn in row if btn.get('text') and btn.get('value')
+            ]
+            if buttons: builder.row(*buttons)
+        return builder.as_markup()
+
     elif first_button_type in ['reply', 'request_contact', 'request_location']:
-        return _build_reply_keyboard(buttons_data)
+        builder = ReplyKeyboardBuilder()
+        for row in buttons_data:
+            buttons = []
+            for btn in row:
+                if not btn.get('text'): continue
+                request_contact = btn['type'] == 'request_contact'
+                request_location = btn['type'] == 'request_location'
+                buttons.append(KeyboardButton(
+                    text=btn['text'],
+                    request_contact=request_contact,
+                    request_location=request_location
+                ))
+            if buttons: builder.row(*buttons)
+        return builder.as_markup(resize_keyboard=True, one_time_keyboard=True)
 
     return None
-
-def _build_inline_keyboard(buttons_data: List[List[Dict]]) -> InlineKeyboardMarkup:
-    """Inline klaviatura yasaydi."""
-    builder = InlineKeyboardBuilder()
-    for row in buttons_data:
-        row_buttons = []
-        for button_config in row:
-            text = button_config.get('text', '')
-            btn_type = button_config.get('type')
-            value = button_config.get('value', '')
-
-            if not text:
-                continue # Matni yo'q tugmani o'tkazib yuboramiz
-
-            if btn_type == 'url' and value:
-                row_buttons.append(InlineKeyboardButton(text=text, url=value))
-            elif btn_type == 'callback' and value:
-                row_buttons.append(InlineKeyboardButton(text=text, callback_data=value))
-        
-        if row_buttons:
-            # `builder.row()` metodi argumentlarni alohida-alohida qabul qiladi,
-            # shuning uchun `*` (unpack) operatoridan foydalanamiz.
-            builder.row(*row_buttons)
-            
-    return builder.as_markup()
-
-def _build_reply_keyboard(buttons_data: List[List[Dict]]) -> ReplyKeyboardMarkup:
-    """Reply (oddiy) klaviatura yasaydi."""
-    builder = ReplyKeyboardBuilder()
-    for row in buttons_data:
-        row_buttons = []
-        for button_config in row:
-            text = button_config.get('text', '')
-            btn_type = button_config.get('type')
-
-            if not text:
-                continue
-
-            if btn_type == 'reply':
-                row_buttons.append(KeyboardButton(text=text))
-            elif btn_type == 'request_contact':
-                row_buttons.append(KeyboardButton(text=text, request_contact=True))
-            elif btn_type == 'request_location':
-                row_buttons.append(KeyboardButton(text=text, request_location=True))
-        
-        if row_buttons:
-            builder.row(*row_buttons)
-
-    # `resize_keyboard=True` klaviaturani ixchamroq qiladi.
-    # `one_time_keyboard` True bo'lsa, tugma bosilgach klaviatura yo'qoladi.
-    # Buni ham kelajakda JSON'dan boshqarish mumkin.
-    return builder.as_markup(resize_keyboard=True)
 ```
 
-### 📄 app/handlers.py
+### 📄 app/handlers/**init**.py
 
 ```py
-# app/handlers.py (TO'G'RILANGAN KOD)
 
-from aiogram import Router
+```
+
+### 📄 app/handlers/common.py
+
+```py
+# app/handlers/common.py
+from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
-from app.engine.engine import FlowEngine # <--- To'g'ri klassni import qilamiz
+from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
+
+from app.engine.flow_controller import FlowController
+from app.engine.fsm import FlowState
 
 router = Router()
 
-@router.message()
-async def universal_message_handler(message: Message, engine: FlowEngine): # <--- MUHIM O'ZGARISH
-    """Barcha kiruvchi xabarlarni qabul qilib, dvijokka uzatadi."""
-    await engine.handle_message(message)
+# Bu handler foydalanuvchi FlowState.waiting_for_trigger holatida bo'lganda ishlaydi.
+# state=... o'rniga StateFilter(...) ishlatiladi.
+@router.message(F.content_type.ANY, StateFilter(FlowState.waiting_for_trigger))
+@router.callback_query(StateFilter(FlowState.waiting_for_trigger))
+async def waiting_handler(update: Message | CallbackQuery, controller: FlowController, state: FSMContext):
+    await controller.handle_update(update, state)
 
-@router.callback_query()
-async def universal_callback_handler(callback: CallbackQuery, engine: FlowEngine): # <--- MUHIM O'ZGARISH
-    """Barcha kiruvchi callback'larni qabul qilib, dvijokka uzatadi."""
-    await engine.handle_callback(callback)
+# Bu handler foydalanuvchi holati bo'sh (None) bo'lganda ishlaydi.
+@router.message(F.content_type.ANY, StateFilter(None))
+@router.callback_query(StateFilter(None))
+async def initial_handler(update: Message | CallbackQuery, controller: FlowController, state: FSMContext):
+    await controller.handle_update(update, state)
 ```
 
 ### 📄 app/main.py
 
 ```py
+# app/main.py (YANGILANGAN VERSIYA)
+
 import logging
+import requests
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.default import DefaultBotProperties # <--- QO'SHILDI: import
 
-from env import BOT_TOKEN, FLOW_FILE_PATH  # Token va flow fayl yo'li
+from env import BOT_TOKEN, FLOW_FILE_PATH
+from app.engine.flow_controller import FlowController
+from app.handlers.common import router as common_router
 
-from app.engine.engine import FlowEngine  # FlowEngine import
-from app.handlers import router as bot_router  # Router import
-
-# --- Webhook Sozlamalari ---
-BASE_WEBHOOK_URL = "https://3fe4-185-139-137-7.ngrok-free.app"  # O'zingizning manzilingizni kiriting
+# --- Webhook Sozlamalari (5-qadamda to'ldiriladi) ---
+BASE_WEBHOOK_URL = "https://6ded-84-54-120-94.ngrok-free.app"
 WEBHOOK_PATH = f"/bot/{BOT_TOKEN}"
 WEBHOOK_URL = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
 # ----------------------------
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.info("Ilova ishga tushmoqda...")
+    # --- O'ZGARISH SHU YERDA ---
+    # Botning standart xususiyatlarini belgilaymiz
+    default_properties = DefaultBotProperties(parse_mode="HTML")
+    bot = Bot(token=BOT_TOKEN, default=default_properties)
+    # --- O'ZGARISH TUGADI ---
 
-    try:
-        # Bot va dvigatelni yaratish
-        bot = Bot(token=BOT_TOKEN)
-        engine = FlowEngine(bot=bot, flow_file_path=FLOW_FILE_PATH)
+    controller = FlowController(bot=bot, schema_path=FLOW_FILE_PATH)
 
-        # Dispatcher yaratish, engine ni 'engine' kaliti bilan uzatish
-        dp = Dispatcher(storage=MemoryStorage(), engine=engine)
-        dp.include_router(bot_router)
+    dp = Dispatcher(storage=MemoryStorage(), controller=controller)
+    dp.include_router(common_router)
 
-        # Holatga saqlash
-        app.state.bot = bot
-        app.state.dispatcher = dp
+    app.state.bot = bot
+    app.state.dispatcher = dp
 
-        # Webhook o‘rnatish
-        await bot.set_webhook(url=WEBHOOK_URL)
-        logging.info(f"Webhook o'rnatildi: {WEBHOOK_URL}")
-
-        yield  # Ilova ishida davom etish
-
-    except Exception as e:
-        logging.critical(f"Kritik xato, ilova ishga tushmadi: {e}", exc_info=True)
-        yield  # Xato bo‘lsa ham finally qismiga o‘tadi
-
-    finally:
-        logging.info("Ilova to'xtamoqda...")
-        if hasattr(app.state, 'bot') and app.state.bot:
-            await app.state.bot.delete_webhook()
-            await app.state.bot.session.close()
-            logging.info("Webhook o'chirildi va sessiya yopildi.")
-
+    await bot.set_webhook(url=WEBHOOK_URL)
+    logging.info(f"Webhook o'rnatildi: {WEBHOOK_URL}")
+    yield
+    logging.info("Webhook o'chirilmoqda...")
+    await bot.delete_webhook()
+    await bot.session.close()
 
 app = FastAPI(lifespan=lifespan)
 
 @app.post(WEBHOOK_PATH)
-async def bot_webhook(update: dict):
-    dp = app.state.dispatcher
-    bot = app.state.bot
+async def bot_webhook(request: Request):
+    dispatcher: Dispatcher = request.app.state.dispatcher
+    bot: Bot = request.app.state.bot
 
-    telegram_update = types.Update(**update)
-    try:
-        await dp.feed_update(bot=bot, update=telegram_update)
-    except Exception as e:
-        logging.error(f"Update'ni qayta ishlashda xatolik: {e}", exc_info=True)
-
+    update = types.Update(**(await request.json()))
+    await dispatcher.feed_update(bot=bot, update=update)
     return {'status': 'ok'}
 ```
 
 ### 📄 env.py
 
 ```py
+# env.py
 import os
-import dotenv
+from dotenv import load_dotenv
 
-dotenv.load_dotenv('.env', override=True)
+load_dotenv('.env')
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-FLOW_FILE_PATH = os.getenv('NODE_FILE')
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+FLOW_FILE_PATH = os.getenv("FLOW_FILE_PATH")
+
+print(" LOG_ID: [0d1a24dae806] ~ 🚀 ~ file: env.py:8 ~  BOT_TOKEN:",BOT_TOKEN)
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN .env faylida topilmadi yoki bo'sh!")
+if not FLOW_FILE_PATH:
+    raise ValueError("FLOW_FILE_PATH .env faylida topilmadi yoki bo'sh!")
 ```
 
-### 📄 flow.json
+### 📄 nodes.json
 
 ```json
 {
   "nodes": [
     {
-      "id": "node_start_trigger",
+      "id": "dndnode_3",
       "type": "MessageTriggerNode",
-      "data": { "filter": "command", "context": { "value": "/start" } }
+      "position": {
+        "x": 998.758500144829,
+        "y": 2131.389457003139
+      },
+      "data": {
+        "type": "text",
+        "filter": "command",
+        "context": {
+          "value": "/start"
+        },
+        "messageText": "Familyangizni kiriting"
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": 998.758500144829,
+        "y": 2131.389457003139
+      }
     },
     {
-      "id": "node_show_reply_keyboard",
+      "id": "dndnode_4",
       "type": "SendTextMessageNode",
+      "position": {
+        "x": 1010,
+        "y": 2740
+      },
       "data": {
-        "messageText": "Assalomu alaykum! Quyidagi menyudan tanlang:",
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Assalomu Alekum tz sotib qoch kursi botiga xush kelibsiz",
+        "parseMode": "None",
         "buttons": [
           [
-            { "id": "btn_reply_1", "text": "Mening profilim", "type": "reply" },
-            { "id": "btn_reply_2", "text": "Sozlamalar", "type": "reply" }
-          ],
-          [
             {
-              "id": "btn_reply_close",
-              "text": "/close keyboard",
+              "id": "btn-1751742748572",
+              "text": "ro'yxatdan o'tish",
               "type": "reply"
             }
           ]
         ]
-      }
+      },
+      "width": 400,
+      "height": 257,
+      "selected": false,
+      "positionAbsolute": {
+        "x": 1009.8796938244038,
+        "y": 2742.502822902669
+      },
+      "dragging": false
     },
     {
-      "id": "node_profile_trigger",
-      "type": "MessageTriggerNode",
-      "data": { "filter": "equals", "context": { "value": "Mening profilim" } }
-    },
-    {
-      "id": "node_profile_action",
-      "type": "SendTextMessageNode",
+      "id": "dndnode_7",
+      "type": "ReplyButtonTriggerNode",
+      "position": {
+        "x": -131.9586988059396,
+        "y": 1789.9701225187594
+      },
       "data": {
-        "messageText": "Bu sizning profilingiz haqidagi ma'lumotlar..."
-      }
+        "selectedButtons": ["ro'yxatdan o'tish", "Ro'yxatdan o'tish"]
+      },
+      "width": 320,
+      "height": 169,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -131.9586988059396,
+        "y": 1789.9701225187594
+      },
+      "dragging": false
     },
     {
-      "id": "node_close_trigger",
-      "type": "MessageTriggerNode",
-      "data": { "filter": "equals", "context": { "value": "/close keyboard" } }
-    },
-    {
-      "id": "node_close_action",
+      "id": "dndnode_8",
       "type": "SendTextMessageNode",
+      "position": {
+        "x": -178.5446818842657,
+        "y": 2068.0242645371136
+      },
       "data": {
-        "messageText": "Klaviatura yopildi.",
-        "buttons": []
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Iltmos telefon raqamingizni yuboring",
+        "parseMode": "None",
+        "buttons": [
+          [
+            {
+              "id": "btn-1751742833106",
+              "text": "📱 Kontakt",
+              "type": "request_contact"
+            }
+          ]
+        ]
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false
+    },
+    {
+      "id": "dndnode_9",
+      "type": "MessageTriggerNode", // <--- O'ZGARTIRILDI
+      "position": {
+        "x": -132.5348985878946,
+        "y": 2673.0858638282957
+      },
+      "data": {
+        "type": "contact", // <--- QO'SHILDI
+        "filter": "any", // <--- QO'SHILDI
+        "context": {}
+      },
+      "width": 320,
+      "height": 169,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -132.5348985878946,
+        "y": 2673.0858638282957
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_10",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": -124.86660137183269,
+        "y": 3005.1815444286262
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Iltimos joylashuvingizni kiriting",
+        "parseMode": "None",
+        "buttons": [
+          [
+            {
+              "id": "btn-1751742892939",
+              "text": "📍 Lokatsiya",
+              "type": "request_location"
+            }
+          ]
+        ]
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false
+    },
+    {
+      "id": "dndnode_11",
+      "type": "ReplyButtonTriggerNode",
+      "position": {
+        "x": -89.64036079749326,
+        "y": 3599.3322878980885
+      },
+      "data": {
+        "selectedButtons": ["📍 Lokatsiya"]
+      },
+      "width": 320,
+      "height": 169,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -89.64036079749326,
+        "y": 3599.3322878980885
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_12",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": -128.94038402981028,
+        "y": 3827.4042188972226
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Uylanganmisiz",
+        "parseMode": "None",
+        "buttons": [
+          [
+            {
+              "id": "btn-1751742928047",
+              "text": "Ha",
+              "type": "reply"
+            },
+            {
+              "id": "btn-1751742931953",
+              "text": "Yo'q",
+              "type": "reply"
+            }
+          ]
+        ]
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -128.94038402981028,
+        "y": 3827.4042188972226
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_13",
+      "type": "ReplyButtonTriggerNode",
+      "position": {
+        "x": -513.2058287419962,
+        "y": 4424.763473819695
+      },
+      "data": {
+        "selectedButtons": ["Ha"]
+      },
+      "width": 320,
+      "height": 193,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -513.2058287419962,
+        "y": 4424.763473819695
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_14",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": -572.2941872663575,
+        "y": 4803.744634422446
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Bo'ydoq emasligingizdan hursandman",
+        "parseMode": "None"
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": -572.2941872663575,
+        "y": 4803.744634422446
       }
+    },
+    {
+      "id": "dndnode_15",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": -187.4868458599613,
+        "y": 5406.399058369585
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Ma'lumotlaringizni adminga jo'natdim tez orada bog'lanam",
+        "parseMode": "None"
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": -187.4868458599613,
+        "y": 5406.399058369585
+      }
+    },
+    {
+      "id": "dndnode_19",
+      "type": "ReplyButtonTriggerNode",
+      "position": {
+        "x": 281.62243925130485,
+        "y": 4419.879161017825
+      },
+      "data": {
+        "selectedButtons": ["Yo'q"]
+      },
+      "width": 320,
+      "height": 193,
+      "selected": false,
+      "positionAbsolute": {
+        "x": 281.62243925130485,
+        "y": 4419.879161017825
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_21",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": 210.32820993866676,
+        "y": 4735.013105403038
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Siz uchun afsusdaman tezro uylaning",
+        "parseMode": "None"
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": 210.32820993866676,
+        "y": 4735.013105403038
+      }
+    },
+    {
+      "id": "dndnode_0",
+      "type": "MessageTriggerNode",
+      "position": {
+        "x": -157.74199782446624,
+        "y": 688.3148655163712
+      },
+      "data": {
+        "type": "text",
+        "filter": "command",
+        "context": {
+          "value": "/start"
+        }
+      },
+      "width": 400,
+      "height": 327,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -157.74199782446624,
+        "y": 688.3148655163712
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_1",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": -163.6358458176362,
+        "y": 1111.8844250813556
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Salom kazzob botga xush kelibsiz",
+        "parseMode": "None",
+        "buttons": [
+          [
+            {
+              "id": "btn-1751751011182",
+              "text": "Ro'yxatdan o'tish",
+              "type": "reply"
+            }
+          ]
+        ]
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": -163.6358458176362,
+        "y": 1111.8844250813556
+      }
+    },
+    {
+      "id": "dndnode_2",
+      "type": "MessageTriggerNode",
+      "position": {
+        "x": 996.1053977677254,
+        "y": 1800.954390725774
+      },
+      "data": {
+        "type": "text",
+        "filter": "any",
+        "context": {}
+      },
+      "width": 400,
+      "height": 257,
+      "selected": false,
+      "positionAbsolute": {
+        "x": 996.1053977677254,
+        "y": 1800.954390725774
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_3",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": 998.758500144829,
+        "y": 2131.389457003139
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Familyangizni kiriting",
+        "parseMode": "None"
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": 998.758500144829,
+        "y": 2131.389457003139
+      }
+    },
+    {
+      "id": "dndnode_4",
+      "type": "MessageTriggerNode",
+      "position": {
+        "x": 1010,
+        "y": 2740
+      },
+      "data": {
+        "type": "text",
+        "filter": "any",
+        "context": {}
+      },
+      "width": 400,
+      "height": 257,
+      "selected": false,
+      "positionAbsolute": {
+        "x": 1009.8796938244038,
+        "y": 2742.502822902669
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_5",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": 1035.462702710271,
+        "y": 3132.6810748558128
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Adminga yuborildi",
+        "parseMode": "None"
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "dragging": false
+    },
+    {
+      "id": "dndnode_0",
+      "type": "MessageTriggerNode",
+      "position": {
+        "x": -157.74199782446624,
+        "y": 688.3148655163712
+      },
+      "data": {
+        "type": "text",
+        "filter": "command",
+        "context": {
+          "value": "/start"
+        }
+      },
+      "width": 400,
+      "height": 327,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -157.74199782446624,
+        "y": 688.3148655163712
+      },
+      "dragging": false
+    },
+    {
+      "id": "dndnode_1",
+      "type": "SendTextMessageNode",
+      "position": {
+        "x": -163.6358458176362,
+        "y": 1111.8844250813556
+      },
+      "data": {
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Salom kazzob botga xush kelibsiz",
+        "parseMode": "None",
+        "buttons": [
+          [
+            {
+              "id": "btn-1751751011182",
+              "text": "Ro'yxatdan o'tish",
+              "type": "reply"
+            }
+          ]
+        ]
+      },
+      "width": 400,
+      "height": 530,
+      "selected": false,
+      "positionAbsolute": {
+        "x": -163.6358458176362,
+        "y": 1111.8844250813556
+      },
+      "dragging": false
     }
   ],
   "edges": [
     {
-      "source": "node_start_trigger",
-      "target": "node_show_reply_keyboard",
-      "id": "edge_1"
+      "source": "dndnode_3",
+      "sourceHandle": "out",
+      "target": "dndnode_4",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_3out-dndnode_4"
     },
     {
-      "source": "node_profile_trigger",
-      "target": "node_profile_action",
-      "id": "edge_2"
+      "source": "dndnode_7",
+      "sourceHandle": null,
+      "target": "dndnode_8",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_7-dndnode_8"
     },
     {
-      "source": "node_close_trigger",
-      "target": "node_close_action",
-      "id": "edge_3"
+      "source": "dndnode_8",
+      "sourceHandle": null,
+      "target": "dndnode_9",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_8-dndnode_9"
+    },
+    {
+      "source": "dndnode_9",
+      "sourceHandle": null,
+      "target": "dndnode_10",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_9-dndnode_10"
+    },
+    {
+      "source": "dndnode_10",
+      "sourceHandle": null,
+      "target": "dndnode_11",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_10-dndnode_11"
+    },
+    {
+      "source": "dndnode_11",
+      "sourceHandle": null,
+      "target": "dndnode_12",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_11-dndnode_12"
+    },
+    {
+      "source": "dndnode_12",
+      "sourceHandle": null,
+      "target": "dndnode_13",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_12-dndnode_13",
+      "selected": false
+    },
+    {
+      "source": "dndnode_13",
+      "sourceHandle": null,
+      "target": "dndnode_14",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_13-dndnode_14",
+      "selected": false
+    },
+    {
+      "source": "dndnode_14",
+      "sourceHandle": null,
+      "target": "dndnode_15",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_14-dndnode_15",
+      "selected": false
+    },
+    {
+      "source": "dndnode_12",
+      "sourceHandle": null,
+      "target": "dndnode_19",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_12-dndnode_19"
+    },
+    {
+      "source": "dndnode_19",
+      "sourceHandle": null,
+      "target": "dndnode_21",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_19-dndnode_21"
+    },
+    {
+      "source": "dndnode_21",
+      "sourceHandle": null,
+      "target": "dndnode_15",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_21-dndnode_15"
+    },
+    {
+      "source": "dndnode_3",
+      "sourceHandle": null,
+      "target": "dndnode_4",
+      "targetHandle": "in",
+      "id": "reactflow__edge-dndnode_3-dndnode_4",
+      "selected": false
+    },
+    {
+      "source": "dndnode_2",
+      "sourceHandle": "out",
+      "target": "dndnode_3",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_2out-dndnode_3"
+    },
+    {
+      "source": "dndnode_4",
+      "sourceHandle": "out",
+      "target": "dndnode_5",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_4out-dndnode_5"
+    },
+    {
+      "source": "dndnode_0",
+      "sourceHandle": "out",
+      "target": "dndnode_1",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_0out-dndnode_1"
+    },
+    {
+      "source": "dndnode_1",
+      "sourceHandle": null,
+      "target": "dndnode_7",
+      "targetHandle": null,
+      "id": "reactflow__edge-dndnode_1-dndnode_7"
     }
   ]
 }
-
 ```

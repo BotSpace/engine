@@ -1,47 +1,32 @@
 import json
-from typing import Dict, List
-
-class SchemaError(Exception):
-    """Sxemadagi xatoliklar uchun maxsus exception."""
-    pass
+import logging
+from typing import Dict, List, Any
 
 class SchemaLoader:
-    def __init__(self, flow_file_path: str):
-        self.flow_file_path = flow_file_path
+    def __init__(self, file_path: str):
         self.nodes: Dict[str, Dict] = {}
         self.edges: Dict[str, List[Dict]] = {}
-        self._load_and_validate()
+        self.root_triggers: List[Dict] = []
+        self._load(file_path)
 
-    def _load_and_validate(self):
-        """Faylni yuklaydi va oddiy validatsiyadan o'tkazadi."""
+    def _load(self, file_path: str):
         try:
-            with open(self.flow_file_path, 'r', encoding='utf-8') as f:
-                flow_data = json.load(f)
-        except FileNotFoundError:
-            raise SchemaError(f"Sxema fayli topilmadi: {self.flow_file_path}")
-        except json.JSONDecodeError:
-            raise SchemaError(f"Sxema fayli yaroqsiz JSON formatida: {self.flow_file_path}")
+            with open(file_path, 'r', encoding='utf-8') as f: data = json.load(f)
+            all_nodes, all_edges = data.get('nodes', []), data.get('edges', [])
+            self.nodes = {node['id']: node for node in all_nodes}
+            for edge in all_edges:
+                self.edges.setdefault(edge['source'], []).append(edge)
+            
+            target_node_ids = {edge['target'] for edge in all_edges}
+            self.root_triggers = [
+                node for node in all_nodes
+                if 'Trigger' in node.get('type', '') and node['id'] not in target_node_ids
+            ]
+            logging.info(f"Sxema yuklandi: {len(self.nodes)} node, {len(all_edges)} edge, {len(self.root_triggers)} root trigger.")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logging.critical(f"Sxema faylini yuklashda xatolik: {e}")
+            raise
 
-        # Validatsiya (KISS - oddiy va tushunarli)
-        if 'nodes' not in flow_data or 'edges' not in flow_data:
-            raise SchemaError("Sxemada 'nodes' yoki 'edges' maydonlari mavjud emas.")
-
-        # DRY - kod takrorlanishini oldini olish
-        self.nodes = self._prepare_nodes(flow_data.get('nodes', []))
-        self.edges = self._prepare_edges(flow_data.get('edges', []))
-
-    @staticmethod
-    def _prepare_nodes(nodes_list: List[Dict]) -> Dict[str, Dict]:
-        """Node'larni tezkor qidirish uchun lug'atga o'tkazadi."""
-        return {node['id']: node for node in nodes_list}
-
-    @staticmethod
-    def _prepare_edges(edges_list: List[Dict]) -> Dict[str, List[Dict]]:
-        """Qirralarni (edges) source_id bo'yicha guruhlaydi."""
-        edges_map = {}
-        for edge in edges_list:
-            source_id = edge['source']
-            if source_id not in edges_map:
-                edges_map[source_id] = []
-            edges_map[source_id].append(edge)
-        return edges_map
+    def get_node(self, node_id: str) -> Dict | None: return self.nodes.get(node_id)
+    def get_next_nodes(self, source_node_id: str) -> List[Dict]:
+        return [self.get_node(edge['target']) for edge in self.edges.get(source_node_id, []) if self.get_node(edge['target'])]
