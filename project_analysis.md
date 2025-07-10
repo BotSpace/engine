@@ -1,6 +1,6 @@
 # Loyiha Tahlili Hisoboti
 
-Sana: 2025-07-06 02:48:44
+Sana: 2025-07-11 01:07:46
 
 ## 📁 Fayl Strukturasi
 
@@ -288,21 +288,22 @@ pyrightconfig.json
 
 ```md
 # engine
+
 ```
 
-### 📄 app/**init**.py
+### 📄 app/__init__.py
 
 ```py
 
 ```
 
-### 📄 app/engine/**init**.py
+### 📄 app/engine/__init__.py
 
 ```py
 
 ```
 
-### 📄 app/engine/executors/**init**.py
+### 📄 app/engine/executors/__init__.py
 
 ```py
 # app/engine/executors/__init__.py
@@ -318,13 +319,12 @@ from app.engine.handlers.message_handlers import SendTextHandler
 class NodeExecutor:
     """
     Action turidagi node'larni ularning turiga qarab to'g'ri "handler"ga yuboruvchi dispetcher.
-    Bu klassni yangi action'lar qo'shish uchun o'zgartirish shart emas (Open/Closed Principle).
-    Faqatgina _handlers lug'atiga yangi yozuv qo'shiladi.
     """
     def __init__(self, bot: Bot):
         self.bot = bot
         self.logger = logging.getLogger(self.__class__.__name__)
-
+        
+        # Node turi va uni bajaruvchi Handler klassi o'rtasidagi bog'liqlik
         self._handlers: Dict[str, Type[ActionHandler]] = {
             "SendTextMessageNode": SendTextHandler,
             "SendPhotoNode": SendPhotoHandler,
@@ -334,7 +334,7 @@ class NodeExecutor:
             "CustomCodeNode": CustomCodeHandler,
         }
 
-    async def execute(self, node: Dict[str, Any], chat_id: int):
+    async def execute(self, node: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
         node_type = node.get('type')
         handler_class = self._handlers.get(node_type)
 
@@ -343,14 +343,15 @@ class NodeExecutor:
             return
 
         try:
+            # Handler'dan obyekt yaratamiz va `handle` metodini chaqiramiz
             handler_instance = handler_class(self.bot)
-            await handler_instance.handle(node.get('data', {}), chat_id)
+            await handler_instance.handle(node.get('data', {}), chat_id, context)
+            self.logger.info(f"Node (ID: {node.get('id')}) muvaffaqiyatli bajarildi.")
         except Exception as e:
             self.logger.error(
                 f"Node (ID: {node.get('id')}, Turi: {node_type}) bajarilishida kutilmagan xatolik: {e}",
                 exc_info=True
             )
-
 ```
 
 ### 📄 app/engine/flow_controller.py
@@ -359,14 +360,19 @@ class NodeExecutor:
 # app/engine/flow_controller.py
 
 import logging
+import re
+from typing import Dict, Any
+
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery, Update
+from aiogram.types import Message, CallbackQuery
+from geopy.distance import geodesic # pip install geopy
 
 from .fsm import FlowState
 from .loader import SchemaLoader
 from .executors import NodeExecutor
 from .state_manager import StateManager
+
 
 class FlowController:
     def __init__(self, bot: Bot, schema_path: str):
@@ -375,105 +381,215 @@ class FlowController:
         self.executor = NodeExecutor(bot)
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def handle_update(self, event: Message | CallbackQuery, fsm_context: FSMContext):
+    # --- YORDAMCHI FUNKSIYA (RADIUSNI TEKSHIRISH UCHUN) ---
+    def _check_radius(self, event_location, radius_context: Dict[str, Any]) -> bool:
+        """Berilgan nuqta belgilangan radius ichidaligini tekshiradi."""
+        try:
+            # Frontend'dan kelgan qiymatlarni float'ga o'giramiz
+            center_lat = float(radius_context.get("lat"))
+            center_lng = float(radius_context.get("lng"))
+            radius_km = float(radius_context.get("km"))
+            
+            # Foydalanuvchi yuborgan lokatsiya
+            user_location = (event_location.latitude, event_location.longitude)
+            # Markaziy nuqta
+            center_point = (center_lat, center_lng)
+            
+            # Ikki nuqta orasidagi masofani hisoblaymiz
+            distance = geodesic(user_location, center_point).kilometers
+            
+            self.logger.debug(f"Radius tekshiruvi: Masofa {distance:.2f}km, Talab {radius_km}km.")
+            return distance <= radius_km
+        except (ValueError, TypeError, AttributeError):
+            # Agar frontenddan kelgan qiymatlar son bo'lmasa
+            self.logger.warning(f"Radius uchun noto'g'ri qiymatlar keldi: {radius_context}")
+            return False
+
+    async def handle_update(
+        self, event: Message | CallbackQuery, fsm_context: FSMContext
+    ):
+        # Bu metod o'zgarishsiz qoladi, avvalgi javobdagi versiya to'g'ri
         state_manager = StateManager(fsm_context)
         current_state = await fsm_context.get_state()
+        flow_context = await fsm_context.get_data()
 
-        # --- XATO TUZATILGAN QISM ---
-        # Ob'ekt tipini `isinstance` yordamida tekshiramiz
-        chat_id = None
+        chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
+        
         if isinstance(event, Message):
-            chat_id = event.chat.id
+            flow_context['message'] = event
         elif isinstance(event, CallbackQuery):
-            chat_id = event.message.chat.id
+            flow_context['callback_query'] = event
 
-        if chat_id is None:
-            self.logger.warning(f"Update turidan chat_id aniqlanmadi: {type(event)}")
-            return
-        # --- TUZATISH TUGADI ---
-
-        self.logger.info(f"CHAT_ID={chat_id}: Yangi event qabul qilindi. Holat: {current_state}")
+        self.logger.info(
+            f"CHAT_ID={chat_id}: Event qabul qilindi. Holat: {current_state}"
+        )
 
         if current_state == FlowState.waiting_for_trigger:
-            node_id_to_check = await state_manager.get_waiting_node_id()
-            trigger_node = self.schema.get_node(node_id_to_check)
+            paused_node_id = await state_manager.get_paused_node_id()
+            if not paused_node_id:
+                self.logger.warning(f"CHAT_ID={chat_id}: Holat 'waiting' lekin 'paused_node_id' topilmadi. Holat tozalanmoqda.")
+                await state_manager.clear_state()
+                return
 
-            if trigger_node and self._check_trigger(trigger_node, event):
-                self.logger.info(f"CHAT_ID={chat_id}: Kutilgan trigger ({node_id_to_check}) ishga tushdi.")
-                await fsm_context.clear()
-                await self._traverse(trigger_node, chat_id, fsm_context)
-            else:
-                self.logger.debug(f"CHAT_ID={chat_id}: Event kutilgan triggerga ({node_id_to_check}) mos kelmadi.")
+            possible_next_nodes = self.schema.get_next_nodes(paused_node_id)
+            for trigger_node in possible_next_nodes:
+                if "Trigger" in trigger_node.get("type", "") and self._check_trigger(trigger_node, event):
+                    self.logger.info(f"CHAT_ID={chat_id}: Kutilgan trigger ({trigger_node['id']}) ishga tushdi.")
+                    await fsm_context.clear()
+                    await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
+                    return
+            self.logger.debug(f"CHAT_ID={chat_id}: Event kutilgan triggerlarga mos kelmadi.")
         else:
             for trigger_node in self.schema.root_triggers:
                 if self._check_trigger(trigger_node, event):
                     self.logger.info(f"CHAT_ID={chat_id}: Yangi ssenariy boshlandi (Root Trigger: {trigger_node['id']})")
-                    await self._traverse(trigger_node, chat_id, fsm_context)
+                    await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
                     return
 
-    async def _traverse(self, trigger_node: dict, chat_id: int, fsm_context: FSMContext):
+    async def _traverse(self, start_node: dict, chat_id: int, fsm_context: FSMContext, flow_context: dict):
+        # Bu metod ham o'zgarishsiz qoladi
         state_manager = StateManager(fsm_context)
-        # Boshlang'ich nuqta - triggerdan keyingi node'lar
-        nodes_to_process = self.schema.get_next_nodes(trigger_node['id'])
+        nodes_to_process = [start_node]
+        last_processed_node_id = start_node["id"]
 
         while nodes_to_process:
-            node = nodes_to_process.pop(0)
-            node_type = node.get('type', '')
+            current_node = nodes_to_process.pop(0)
+            node_type = current_node.get("type", "")
 
-            if 'Trigger' in node_type:
-                self.logger.info(f"CHAT_ID={chat_id}: To'xtab, triggerni kutmoqdamiz (ID: {node['id']})")
-                await state_manager.set_wait_for_trigger(node['id'])
+            if "Node" in node_type and "Trigger" not in node_type:
+                await self.executor.execute(current_node, chat_id, flow_context)
+                last_processed_node_id = current_node["id"]
+            
+            next_nodes = self.schema.get_next_nodes(current_node["id"])
+
+            if not next_nodes:
+                continue
+
+            if all("Trigger" in n.get("type", "") for n in next_nodes):
+                self.logger.info(f"CHAT_ID={chat_id}: Harakat bajarildi ({last_processed_node_id}), trigger(lar)ni kutish uchun pauza.")
+                await state_manager.set_pause_after_node(last_processed_node_id, flow_context)
                 return
 
-            elif 'Node' in node_type:
-                await self.executor.execute(node, chat_id)
-                nodes_to_process.extend(self.schema.get_next_nodes(node['id']))
+            nodes_to_process.extend(next_nodes)
 
         self.logger.info(f"CHAT_ID={chat_id}: Ssenariy shoxi tugadi. Holat tozalanmoqda.")
         await state_manager.clear_state()
 
-
+    # --- _check_trigger METODINING TO'LIQ IMPLEMENTATSIYASI ---
     def _check_trigger(self, trigger_node: dict, event: Message | CallbackQuery) -> bool:
-        data, node_type = trigger_node.get('data', {}), trigger_node.get('type')
+        """Trigger shartlarini tekshiruvchi asosiy funksiya."""
+        node_type = trigger_node.get("type")
+        data = trigger_node.get("data", {})
+        
+        # --- MessageTriggerNode ---
+        if node_type == "MessageTriggerNode" and isinstance(event, Message):
+            expected_type = data.get("type")
+            
+            # 1. Kutilgan xabar turi va kelgan xabar turi mosligini tekshiramiz
+            if expected_type != "any" and expected_type != event.content_type:
+                return False
 
-        # --- 1-holat: MessageTriggerNode (matn, kontakt, lokatsiya va hk uchun) ---
-        if node_type == 'MessageTriggerNode' and isinstance(event, Message):
-            # Trigger qanday kontent turini kutayotganini aniqlaymiz
-            expected_content_type = data.get('type') # 'text', 'contact', 'location'
+            # 2. Agar turlar mos kelsa, endi filterni tekshiramiz
+            filt = data.get("filter")
+            context = data.get("context", {})
 
-            # 1a: Matn kutilganda (buyruq yoki oddiy matn)
-            if expected_content_type == 'text' and event.text:
-                filter_type = data.get('filter') # 'command', 'any'
-                if filter_type == 'command':
-                    expected_command = data.get('context', {}).get('value')
-                    return event.text == expected_command
-                elif filter_type == 'any':
-                    return True # Har qanday matn kelsa, True
+            # Agar filter yo'q yoki "har qanday" bo'lsa, trigger ishlaydi
+            if not filt or filt == "any":
+                return True
 
-            # 1b: Kontakt kutilganda
-            elif expected_content_type == 'contact' and event.contact:
-                return True # Har qanday kontakt kelsa, True
+            # --- Matnli filtrlar ---
+            if filt in ["equals", "contains", "starts_with", "regex", "command"]:
+                if not event.text: return False
+                value = context.get("value")
+                if value is None: return False
+                
+                if filt == "equals": return event.text == value
+                if filt == "contains": return value in event.text
+                if filt in ["starts_with", "command"]: return event.text.startswith(value)
+                if filt == "regex":
+                    try:
+                        return bool(re.match(value, event.text))
+                    except re.error:
+                        self.logger.warning(f"Noto'g'ri regex pattern: {value}")
+                        return False
+            
+            # --- Joylashuv filtri ---
+            if filt == "radius":
+                if not event.location or not context.get("radius"): return False
+                return self._check_radius(event.location, context["radius"])
 
-            # 1c: Lokatsiya kutilganda
-            elif expected_content_type == 'location' and event.location:
-                return True # Har qanday lokatsiya kelsa, True
+            # --- Fayl kengaytmasi filtri (faqat hujjat uchun) ---
+            if filt == "extension":
+                if not event.document or not event.document.file_name: return False
+                value = context.get("value", "").lower().lstrip('.')
+                if not value: return False
+                return event.document.file_name.lower().endswith(f".{value}")
 
-        # --- 2-holat: ReplyButtonTriggerNode (FAQAT matnli tugmalar uchun) ---
-        elif node_type == 'ReplyButtonTriggerNode' and isinstance(event, Message) and event.text:
-            # Trigger qaysi matn(lar)ni kutayotganini aniqlaymiz
-            expected_buttons = data.get('selectedButtons', [])
-            # Kelgan matn kutilayotgan matnlar ro'yxatida bo'lsa, True
-            return event.text in expected_buttons
+            # --- Fayl hajmi filtri ---
+            if filt == "size":
+                file_size_bytes = 0
+                if event.photo: file_size_bytes = event.photo[-1].file_size
+                elif event.video: file_size_bytes = event.video.file_size
+                elif event.audio: file_size_bytes = event.audio.file_size
+                elif event.document: file_size_bytes = event.document.file_size
+                
+                if file_size_bytes == 0: return False
 
-        # --- 3-holat: CallbackQueryTriggerNode (inline tugmalar uchun) ---
-        # Kelajakda to'ldiriladi
-        elif node_type in ['CallbackButtonTriggerNode', 'CallbackQueryTriggerNode'] and isinstance(event, CallbackQuery):
-            # Bu yerda `event.data` ni tekshirish logikasi bo'ladi
-            pass
+                try:
+                    size_context = context.get("size", {})
+                    min_mb_str = size_context.get("min")
+                    max_mb_str = size_context.get("max")
+                    file_size_mb = file_size_bytes / (1024 * 1024)
 
-        # Agar hech qaysi shart bajarilmasa
+                    # Minimal hajmni tekshirish
+                    if min_mb_str and file_size_mb < float(min_mb_str):
+                        return False
+                    # Maksimal hajmni tekshirish
+                    if max_mb_str and file_size_mb > float(max_mb_str):
+                        return False
+                    return True # Barcha shartlar bajarildi
+                except (ValueError, TypeError):
+                    self.logger.warning(f"Fayl hajmi uchun noto'g'ri qiymatlar: {context.get('size')}")
+                    return False
+            
+            return False # Agar hech qaysi filter mos kelmasa
+
+        # --- ReplyButtonTriggerNode ---
+        elif node_type == "ReplyButtonTriggerNode" and isinstance(event, Message):
+            selected_button: dict | None = data.get("selectedButton")
+            if not selected_button: return False
+
+            btn_type, btn_text = selected_button.get("type"), selected_button.get("text")
+            
+            if btn_type == "reply" and event.text == btn_text: return True
+            if btn_type == "request_contact" and event.contact: return True
+            if btn_type == "request_location" and event.location: return True
+            return False
+
+        # --- CallbackButtonTriggerNode & CallbackQueryTriggerNode ---
+        elif node_type in ["CallbackButtonTriggerNode", "CallbackQueryTriggerNode"] and isinstance(event, CallbackQuery):
+            if not event.data: return False
+            
+            if node_type == "CallbackButtonTriggerNode":
+                selected_callbacks = data.get("selectedCallbacks", [])
+                return event.data in selected_callbacks
+            
+            if node_type == "CallbackQueryTriggerNode":
+                filt, value = data.get("filter"), data.get("context", {}).get("value")
+                if filt == "any": return True
+                if not filt or not value: return False
+                
+                if filt == "equals" and event.data == value: return True
+                if filt == "contains" and value in event.data: return True
+                if filt == "starts_with" and event.data.startswith(value): return True
+                if filt == "regex":
+                    try:
+                        return bool(re.match(value, event.data))
+                    except re.error:
+                        return False
+            return False
+        
         return False
-
 ```
 
 ### 📄 app/engine/fsm.py
@@ -485,7 +601,7 @@ class FlowState(StatesGroup):
     waiting_for_trigger = State()
 ```
 
-### 📄 app/engine/handlers/**init**.py
+### 📄 app/engine/handlers/__init__.py
 
 ```py
 
@@ -494,188 +610,262 @@ class FlowState(StatesGroup):
 ### 📄 app/engine/handlers/base.py
 
 ```py
+# app/engine/handlers/base.py
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Union, Optional
+from typing import Dict, Any, List
 
 from aiogram import Bot
-from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
-
-# Bu funksiya sizning utils.py faylingizda deb hisoblaymiz
 from app.engine.utils import build_keyboard
 
 class ActionHandler(ABC):
     """
     Barcha Action Node handler'lari uchun abstrakt baza klassi (interfeys).
-    Har bir handler shu klassdan meros oladi va o'zining `handle` metodini implementatsiya qiladi.
-    Bu Liskov Substitution Principle (SOLID'ning 'L' harfi) uchun muhim.
     """
     def __init__(self, bot: Bot):
         self.bot = bot
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @abstractmethod
-    async def handle(self, data: Dict[str, Any], chat_id: int):
+    async def handle(self, data: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
         """
         Har bir handler ushbu metodni o'ziga xos tarzda implementatsiya qilishi SHART.
         :param data: Node'ning `data` maydonidagi ma'lumotlar.
         :param chat_id: Xabar yuboriladigan chat ID.
+        :param context: Sxema bo'ylab yuradigan umumiy ma'lumotlar lug'ati.
         """
         raise NotImplementedError
 
     def _prepare_common_params(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Ko'pchilik `send_*` metodlari uchun umumiy bo'lgan parametrlarni tayyorlaydi.
-        Bu kod takrorlanishining oldini oladi (DRY tamoyili).
         """
-        buttons: Optional[list[list[dict]]] = data.get('buttons')
-
-        # `build_keyboard` funksiyasi ReplyKeyboardRemove qaytarishi mumkin,
-        # shuning uchun reply_markup None bo'lmasligi kerak
-        reply_markup: Optional[Union[InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove]] = build_keyboard(buttons)
-
         params = {}
-        if reply_markup is not None:
+        
+        # Yangi `build_keyboard` funksiyasiga butun konfiguratsiyani uzatamiz
+        reply_markup = build_keyboard(data.get('keyboard'))
+        if reply_markup:
             params['reply_markup'] = reply_markup
 
         if data.get('disableNotification'):
             params['disable_notification'] = True
-
+        
         if data.get('protectContent'):
             params['protect_content'] = True
-
+            
         return params
+
+    def _get_recipients(self, data: Dict[str, Any], initial_chat_id: int) -> List[int]:
+        """Qabul qiluvchilar ro'yxatini shakllantiradi."""
+        recipients_config = data.get('recipients', {})
+        ids = []
+        
+        if recipients_config.get('sendToSender', True):
+            ids.append(initial_chat_id)
+            
+        additional_ids_str = recipients_config.get('additionalIds', [])
+        for user_id in additional_ids_str:
+            try:
+                ids.append(int(user_id))
+            except (ValueError, TypeError):
+                self.logger.warning(f"Qo'shimcha qabul qiluvchi ID'si noto'g'ri formatda: {user_id}")
+        
+        # Dublikatlarni olib tashlaymiz
+        return list(set(ids))
 ```
 
 ### 📄 app/engine/handlers/custom_handlers.py
 
 ```py
-# app/engine/executors/custom_handlers.py
+# app/engine/handlers/custom_handlers.py
+import asyncio
 from typing import Dict, Any
 from .base import ActionHandler
 
 class CustomCodeHandler(ActionHandler):
     """CustomCodeNode'ni xavfsiz tarzda bajarish uchun mas'ul."""
 
-    async def handle(self, data: Dict[str, Any], chat_id: int):
+    async def handle(self, data: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
         python_code = data.get('pythonCode', '')
         if not python_code:
             self.logger.warning("CustomCodeNode'da bajarish uchun kod yo'q.")
             return
 
-        self.logger.info(f"CustomCodeNode'ning kodini bajarishga harakat qilinmoqda (chat_id: {chat_id})")
+        self.logger.info(f"CustomCodeNode kodini bajarishga tayyorlanmoqda (chat_id: {chat_id})")
+        
+        # XAVFSIZLIK OGOHLANTIRISHI:
+        # `exec()` yoki `eval()` funksiyalarini to'g'ridan-to'g'ri ishlatish O'TA XAVFLI!
+        # Bu serverda istalgan kodni bajarish imkonini berib, jiddiy xavfsizlik
+        # zaifliklariga olib kelishi mumkin.
+        #
+        # TO'G'RI YECHIM: Maxsus xavfsiz "sandbox" (qum qutisi) muhitida ishlatish.
+        # Buning uchun `restrictedpython` kutubxonasidan foydalanish yoki Piston kabi
+        # API orqali alohida xavfsiz servisda kodni ishga tushirish tavsiya etiladi.
+        #
+        # Hozircha, biz bu amaliyotning xavfliligini ko'rsatish uchun faqat log yozamiz
+        # va `async` funksiya ichida kodni bajarishning to'g'ri usulini ko'rsatamiz.
 
-        # DIQQAT: `exec()` funksiyasini to'g'ridan-to'g'ri ishlatish O'TA XAVFLI!
-        # Bu yerda maxsus xavfsiz "sandbox" (qum qutisi) muhiti yaratish kerak.
-        # Buning uchun restrictedpython, Piston API kabi kutubxonalardan foydalanish mumkin.
-        # Hozircha, biz bu amaliyotning xavfliligini ko'rsatish uchun faqat log yozamiz.
+        # Kod bajarilishi uchun mavjud bo'lgan o'zgaruvchilar
+        execution_globals = {
+            'bot': self.bot,
+            'chat_id': chat_id,
+            'context': context, # Bu lug'at orqali node'lar o'rtasida ma'lumot almashish mumkin
+            'asyncio': asyncio,
+            # Xabarga oid o'zgaruvchilar (agar mavjud bo'lsa) context'dan olinadi
+            'message': context.get('message'), 
+            'callback': context.get('callback_query'),
+        }
 
-        self.logger.critical("XAVFSIZLIK OGOHLANTIRISHI: Custom code execution (exec) implementatsiya qilinmagan.")
-        # Misol:
-        # try:
-        #     # Sandbox'da kodni bajarish logikasi...
-        # except Exception as e:
-        #     self.logger.error(f"Custom code'ni bajarishda xatolik: {e}")
+        try:
+            # Asinxron kodni to'g'ri bajarish uchun
+            exec_code = f"async def __exec_code():\n"
+            exec_code += "".join(f"    {line}\n" for line in python_code.splitlines())
+            
+            # Kodni lokal scope'da `exec` qilamiz
+            exec(exec_code, execution_globals)
+            
+            # Yaratilgan asinxron funksiyani chaqiramiz
+            coro = execution_globals['__exec_code']()
+            await coro
+
+            self.logger.info(f"CustomCodeNode kodi muvaffaqiyatli bajarildi (chat_id: {chat_id})")
+
+        except Exception as e:
+            error_message = f"Custom code'ni bajarishda xatolik yuz berdi: {e}"
+            self.logger.error(error_message, exc_info=True)
+            # Xatolik haqida admin yoki foydalanuvchiga xabar berish mumkin
+            await self.bot.send_message(chat_id, f"⚠️ Kod bajarishda xatolik:\n<pre>{e}</pre>")
 ```
 
 ### 📄 app/engine/handlers/media_handlers.py
 
 ```py
-# app/engine/executors/media_handlers.py
+# app/engine/handlers/media_handlers.py
 from typing import Dict, Any
 from .base import ActionHandler
 
 class SendPhotoHandler(ActionHandler):
     """SendPhotoNode'ni bajarish uchun mas'ul."""
-
-    async def handle(self, data: Dict[str, Any], chat_id: int):
+    async def handle(self, data: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
         source_type = data.get('photoSourceType', 'url')
-        photo_id = data.get('photoFileId' if source_type == 'file_id' else 'photoUrl')
-
+        photo_id = data.get('photoFileId') if source_type == 'file_id' else data.get('photoUrl')
+        
         if not photo_id:
-            self.logger.error(f"Node data'da 'photoFileId' yoki 'photoUrl' topilmadi. Ma'lumot: {data}")
+            self.logger.error(f"Node data'da 'photoFileId' yoki 'photoUrl' topilmadi: {data}")
             return
-
+            
         params = self._prepare_common_params(data)
-
-        caption = data.get('caption')
-        if caption:
-            params['caption'] = caption
-
-        await self.bot.send_photo(
-            chat_id=chat_id,
-            photo=photo_id,
-            **params
-        )
-
+        if data.get('caption'):
+            params['caption'] = data.get('caption')
+            
+        recipient_ids = self._get_recipients(data, chat_id)
+        for recipient_id in recipient_ids:
+            try:
+                await self.bot.send_photo(chat_id=recipient_id, photo=photo_id, **params)
+            except Exception as e:
+                self.logger.error(f"Rasm yuborishda xatolik (chat_id: {recipient_id}): {e}")
 
 class SendVideoHandler(ActionHandler):
     """SendVideoNode'ni bajarish uchun mas'ul."""
-
-    async def handle(self, data: Dict[str, Any], chat_id: int):
+    async def handle(self, data: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
         source_type = data.get('videoSourceType', 'url')
-        video_id = data.get('videoFileId' if source_type == 'file_id' else 'videoUrl')
+        video_id = data.get('videoFileId') if source_type == 'file_id' else data.get('videoUrl')
 
         if not video_id:
-            self.logger.error(f"Node data'da 'videoFileId' yoki 'videoUrl' topilmadi. Ma'lumot: {data}")
+            self.logger.error(f"Node data'da 'videoFileId' yoki 'videoUrl' topilmadi: {data}")
             return
 
         params = self._prepare_common_params(data)
-
-        # Videoga xos parametrlarni qo'shamiz
         if data.get('caption'): params['caption'] = data.get('caption')
         if data.get('width'): params['width'] = int(data['width'])
         if data.get('height'): params['height'] = int(data['height'])
         if data.get('duration'): params['duration'] = int(data['duration'])
         if data.get('supportsStreaming'): params['supports_streaming'] = True
+        
+        recipient_ids = self._get_recipients(data, chat_id)
+        for recipient_id in recipient_ids:
+            try:
+                await self.bot.send_video(chat_id=recipient_id, video=video_id, **params)
+            except Exception as e:
+                self.logger.error(f"Video yuborishda xatolik (chat_id: {recipient_id}): {e}")
 
-        await self.bot.send_video(
-            chat_id=chat_id,
-            video=video_id,
-            **params
-        )
-
-# Xuddi shu tarzda SendAudioHandler va SendFileHandler ham yoziladi...
 class SendAudioHandler(ActionHandler):
     """SendAudioNode'ni bajarish uchun mas'ul."""
-    async def handle(self, data: Dict[str, Any], chat_id: int):
-        # ... Audio uchun logikani implementatsiya qilish ...
-        pass
+    async def handle(self, data: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
+        source_type = data.get('audioSourceType', 'url')
+        audio_id = data.get('audioFileId') if source_type == 'file_id' else data.get('audioUrl')
+
+        if not audio_id:
+            self.logger.error(f"Node data'da 'audioFileId' yoki 'audioUrl' topilmadi: {data}")
+            return
+
+        params = self._prepare_common_params(data)
+        if data.get('caption'): params['caption'] = data.get('caption')
+        if data.get('performer'): params['performer'] = data.get('performer')
+        if data.get('title'): params['title'] = data.get('title')
+        if data.get('duration'): params['duration'] = int(data['duration'])
+        
+        recipient_ids = self._get_recipients(data, chat_id)
+        for recipient_id in recipient_ids:
+            try:
+                await self.bot.send_audio(chat_id=recipient_id, audio=audio_id, **params)
+            except Exception as e:
+                self.logger.error(f"Audio yuborishda xatolik (chat_id: {recipient_id}): {e}")
 
 class SendFileHandler(ActionHandler):
-    """SendFileNode'ni bajarish uchun mas'ul."""
-    async def handle(self, data: Dict[str, Any], chat_id: int):
-        # ... Fayl (document) uchun logikani implementatsiya qilish ...
-        pass
+    """SendFileNode'ni (document) bajarish uchun mas'ul."""
+    async def handle(self, data: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
+        source_type = data.get('fileSourceType', 'url')
+        file_id = data.get('fileId') if source_type == 'file_id' else data.get('fileUrl')
+
+        if not file_id:
+            self.logger.error(f"Node data'da 'fileId' yoki 'fileUrl' topilmadi: {data}")
+            return
+
+        params = self._prepare_common_params(data)
+        if data.get('caption'): params['caption'] = data.get('caption')
+        
+        recipient_ids = self._get_recipients(data, chat_id)
+        for recipient_id in recipient_ids:
+            try:
+                await self.bot.send_document(chat_id=recipient_id, document=file_id, **params)
+            except Exception as e:
+                self.logger.error(f"Fayl yuborishda xatolik (chat_id: {recipient_id}): {e}")
 ```
 
 ### 📄 app/engine/handlers/message_handlers.py
 
 ```py
-# app/engine/executors/message_handlers.py
+# app/engine/handlers/message_handlers.py
 from typing import Dict, Any
 from .base import ActionHandler
 
 class SendTextHandler(ActionHandler):
     """SendTextMessageNode'ni bajarish uchun mas'ul."""
 
-    async def handle(self, data: Dict[str, Any], chat_id: int):
+    async def handle(self, data: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
         text = data.get('messageText', '[Matn ko\'rsatilmagan]')
-
+        # TODO: Kelajakda `context`dagi o'zgaruvchilarni matnga qo'yish logikasi qo'shiladi.
+        # Masalan: text.format(**context)
+        
         params = self._prepare_common_params(data)
-
-        # Qo'shimcha, faqat shu node'ga xos parametrlar
-        if 'parseMode' in data and data['parseMode'] != 'None':
+        
+        if data.get('parseMode') and data['parseMode'] != 'None':
             params['parse_mode'] = data['parseMode']
+        
+        if data.get('disableWebPagePreview'):
+            params['disable_web_page_preview'] = data.get('disableWebPagePreview')
 
-        if 'disableWebPagePreview' in data:
-            params['disable_web_page_preview'] = data['disableWebPagePreview']
-
-        await self.bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            **params
-        )
+        recipient_ids = self._get_recipients(data, chat_id)
+        for recipient_id in recipient_ids:
+            try:
+                await self.bot.send_message(
+                    chat_id=recipient_id,
+                    text=text,
+                    **params
+                )
+            except Exception as e:
+                self.logger.error(f"Xabar yuborishda xatolik (chat_id: {recipient_id}): {e}")
 ```
 
 ### 📄 app/engine/loader.py
@@ -699,7 +889,7 @@ class SchemaLoader:
             self.nodes = {node['id']: node for node in all_nodes}
             for edge in all_edges:
                 self.edges.setdefault(edge['source'], []).append(edge)
-
+            
             target_node_ids = {edge['target'] for edge in all_edges}
             self.root_triggers = [
                 node for node in all_nodes
@@ -715,83 +905,28 @@ class SchemaLoader:
         return [self.get_node(edge['target']) for edge in self.edges.get(source_node_id, []) if self.get_node(edge['target'])]
 ```
 
-### 📄 app/engine/node_executor.py
-
-```py
-# app/engine/node_executor.py
-import logging
-from aiogram import Bot
-from typing import Dict, Any
-from app.engine.utils import build_keyboard
-
-class NodeExecutor:
-    """Berilgan node'ning amalini bajarish uchun mas'ul."""
-
-    def __init__(self, bot: Bot):
-        self.bot = bot
-        # Har bir Action node turi uchun alohida metod
-        self._handlers = {
-            "SendTextMessageNode": self._execute_send_text,
-            "SendPhotoNode": self._execute_send_photo,
-            # ... boshqa action turlari uchun metodlar ...
-        }
-
-    async def execute(self, node: Dict, chat_id: int):
-        node_type = node.get('type')
-        handler = self._handlers.get(node_type)
-        if handler:
-            logging.info(f"CHAT_ID={chat_id}: Bajarilmoqda -> {node_type} (ID: {node['id']})")
-            await handler(node.get('data', {}), chat_id)
-        else:
-            logging.warning(f"CHAT_ID={chat_id}: {node_type} uchun bajaruvchi topilmadi. O'tkazib yuborildi.")
-
-    # --- Action Handler Metodlari ---
-
-    async def _execute_send_text(self, data: Dict[str, Any], chat_id: int):
-        text = data.get('messageText', '[Matn topilmadi]')
-        buttons = data.get('buttons')
-        # Bu yerda `disable_web_page_preview`, `parse_mode` kabilarni ham
-        # `data` dan olib, `send_message`ga uzatish mumkin.
-        await self.bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            reply_markup=build_keyboard(buttons)
-        )
-
-    async def _execute_send_photo(self, data: Dict[str, Any], chat_id: int):
-        # photoSourceType ga qarab file_id yoki url ishlatiladi.
-        photo_id = data.get('photoFileId') or data.get('photoUrl')
-        if not photo_id:
-            logging.error("SendPhotoNode uchun photoFileId yoki photoUrl topilmadi.")
-            return
-
-        caption = data.get('caption', '')
-        buttons = data.get('buttons')
-        await self.bot.send_photo(
-            chat_id=chat_id,
-            photo=photo_id,
-            caption=caption,
-            reply_markup=build_keyboard(buttons)
-        )
-```
-
 ### 📄 app/engine/state_manager.py
 
 ```py
+# app/engine/state_manager.py
 from aiogram.fsm.context import FSMContext
 from app.engine.fsm import FlowState
+
 
 class StateManager:
     def __init__(self, fsm_context: FSMContext):
         self.context = fsm_context
 
-    async def set_wait_for_trigger(self, node_id: str):
+    async def set_pause_after_node(self, node_id: str, flow_data: dict):
+        """Sxema oqimini aniq bir node'dan keyin 'pauza' qiladi."""
         await self.context.set_state(FlowState.waiting_for_trigger)
-        await self.context.update_data(waiting_for_node_id=node_id)
+        flow_data['paused_after_node_id'] = node_id
+        await self.context.set_data(flow_data)
 
-    async def get_waiting_node_id(self) -> str | None:
+    async def get_paused_node_id(self) -> str | None:
+        """Pauza qilingan node'ning ID'sini oladi."""
         data = await self.context.get_data()
-        return data.get("waiting_for_node_id")
+        return data.get("paused_after_node_id")
 
     async def clear_state(self):
         await self.context.clear()
@@ -800,7 +935,8 @@ class StateManager:
 ### 📄 app/engine/utils.py
 
 ```py
-from typing import List, Dict, Optional, Union
+# app/engine/utils.py
+from typing import Dict, Optional, Union
 from aiogram.types import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
@@ -810,47 +946,83 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
-def build_keyboard(buttons_data: Optional[List[List[Dict]]]) -> Optional[Union[InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove]]:
-    if buttons_data is None: return None
-    if not buttons_data: return ReplyKeyboardRemove()
-    if not any(row for row in buttons_data): return None
-
-    try:
-        first_button_type = buttons_data[0][0].get('type')
-    except (IndexError, AttributeError):
+def build_keyboard(keyboard_config: Optional[Dict]) -> Optional[Union[InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove]]:
+    """
+    Frontend'dan kelgan yangi, murakkab keyboard konfiguratsiya obyektidan 
+    aiogram uchun klaviatura yasaydi.
+    
+    keyboard_config = { 
+      "active": "inline" | "reply", 
+      "inline": [[...]], 
+      "reply": [[...]] 
+    }
+    """
+    if not keyboard_config:
         return None
 
+    active_type = keyboard_config.get('active')
+    # Aktiv turdagi tugmalar massivini olamiz, masalan 'inline' yoki 'reply'
+    buttons_data = keyboard_config.get(active_type)
+
+    if not buttons_data or not isinstance(buttons_data, list) or not any(row for row in buttons_data):
+        # Agar aktiv turdagi tugmalar bo'sh bo'lsa (masalan, `[]` yoki `[[]]`),
+        # hech narsa qaytarmaymiz. Bu klaviaturani o'zgartirmaslik imkonini beradi.
+        return None
+        
+    # Tugma turini aniqlash uchun birinchi tugmani tekshiramiz
+    try:
+        # Birinchi qatorning birinchi tugmasini olamiz
+        first_button_type = buttons_data[0][0].get('type')
+    except (IndexError, AttributeError):
+        # Agar tugmalar massivi g'alati formatda bo'lsa
+        return None
+
+    # --- Inline Keyboard yasash ---
     if first_button_type in ['url', 'callback']:
         builder = InlineKeyboardBuilder()
         for row in buttons_data:
-            buttons = [
-                InlineKeyboardButton(text=btn['text'], url=btn.get('value')) if btn['type'] == 'url'
-                else InlineKeyboardButton(text=btn['text'], callback_data=str(btn.get('value')))
-                for btn in row if btn.get('text') and btn.get('value')
-            ]
-            if buttons: builder.row(*buttons)
+            buttons_to_add = []
+            for btn_data in row:
+                # Faqat kerakli maydonlari bor tugmalarni qo'shamiz
+                if btn_data.get('text') and btn_data.get('value'):
+                    if btn_data['type'] == 'url':
+                        buttons_to_add.append(InlineKeyboardButton(text=btn_data['text'], url=btn_data['value']))
+                    else: # 'callback'
+                        buttons_to_add.append(InlineKeyboardButton(text=btn_data['text'], callback_data=str(btn_data['value'])))
+            
+            if buttons_to_add:
+                builder.row(*buttons_to_add)
         return builder.as_markup()
-
+    
+    # --- Reply Keyboard yasash ---
     elif first_button_type in ['reply', 'request_contact', 'request_location']:
         builder = ReplyKeyboardBuilder()
         for row in buttons_data:
-            buttons = []
-            for btn in row:
-                if not btn.get('text'): continue
-                request_contact = btn['type'] == 'request_contact'
-                request_location = btn['type'] == 'request_location'
-                buttons.append(KeyboardButton(
-                    text=btn['text'],
-                    request_contact=request_contact,
+            buttons_to_add = []
+            for btn_data in row:
+                if not btn_data.get('text'):
+                    continue
+                
+                request_contact = btn_data['type'] == 'request_contact'
+                request_location = btn_data['type'] == 'request_location'
+                
+                buttons_to_add.append(KeyboardButton(
+                    text=btn_data['text'], 
+                    request_contact=request_contact, 
                     request_location=request_location
                 ))
-            if buttons: builder.row(*buttons)
-        return builder.as_markup(resize_keyboard=True, one_time_keyboard=True)
+
+            if buttons_to_add:
+                builder.row(*buttons_to_add)
+        
+        # one_time_keyboard=False qilamiz, toki foydalanuvchi bir necha marta bosa olsin.
+        # Frontend logikasiga ko'ra bu to'g'ri keladi.
+        return builder.as_markup(resize_keyboard=True, one_time_keyboard=False)
 
     return None
 ```
 
-### 📄 app/handlers/**init**.py
+### 📄 app/handlers/__init__.py
 
 ```py
 
@@ -890,25 +1062,27 @@ async def initial_handler(update: Message | CallbackQuery, controller: FlowContr
 # app/main.py (YANGILANGAN VERSIYA)
 
 import logging
-import requests
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.client.default import DefaultBotProperties # <--- QO'SHILDI: import
+from aiogram.client.default import DefaultBotProperties  # <--- QO'SHILDI: import
 
-from env import BOT_TOKEN, FLOW_FILE_PATH
+from env import BASE_WEBHOOK_URL, BOT_TOKEN, FLOW_FILE_PATH
 from app.engine.flow_controller import FlowController
 from app.handlers.common import router as common_router
 
+
 # --- Webhook Sozlamalari (5-qadamda to'ldiriladi) ---
-BASE_WEBHOOK_URL = "https://6ded-84-54-120-94.ngrok-free.app"
 WEBHOOK_PATH = f"/bot/{BOT_TOKEN}"
 WEBHOOK_URL = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
 # ----------------------------
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -933,7 +1107,15 @@ async def lifespan(app: FastAPI):
     await bot.delete_webhook()
     await bot.session.close()
 
+
 app = FastAPI(lifespan=lifespan)
+
+
+# FastAPI welcome page
+@app.get("/")
+async def welcome():
+    return {"message": "Welcome to the Bot API!"}
+
 
 @app.post(WEBHOOK_PATH)
 async def bot_webhook(request: Request):
@@ -942,7 +1124,8 @@ async def bot_webhook(request: Request):
 
     update = types.Update(**(await request.json()))
     await dispatcher.feed_update(bot=bot, update=update)
-    return {'status': 'ok'}
+    return {"status": "ok"}
+
 ```
 
 ### 📄 env.py
@@ -952,17 +1135,60 @@ async def bot_webhook(request: Request):
 import os
 from dotenv import load_dotenv
 
-load_dotenv('.env')
+load_dotenv(".env")
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-FLOW_FILE_PATH = os.getenv("FLOW_FILE_PATH")
+BOT_TOKEN = os.getenv("BOT_TOKEN", default="")
+FLOW_FILE_PATH = os.getenv("FLOW_FILE_PATH", default="")
+BASE_WEBHOOK_URL = os.getenv("BASE_WEBHOOK_URL", default="")
 
-print(" LOG_ID: [0d1a24dae806] ~ 🚀 ~ file: env.py:8 ~  BOT_TOKEN:",BOT_TOKEN)
+print(" LOG_ID: [5366b42bb68a] ~ 🚀 ~ file: env.py:10 ~  BASE_WEBHOOK_URL:", BASE_WEBHOOK_URL)
+
+print(" LOG_ID: [0d1a24dae806] ~ 🚀 ~ file: env.py:8 ~  BOT_TOKEN:", BOT_TOKEN)
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN .env faylida topilmadi yoki bo'sh!")
 if not FLOW_FILE_PATH:
     raise ValueError("FLOW_FILE_PATH .env faylida topilmadi yoki bo'sh!")
+
+
+```
+
+### 📄 just.py
+
+```py
+import logging
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import CommandStart
+from aiogram.utils import executor
+
+API_TOKEN = 'YOUR_BOT_TOKEN_HERE'
+
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot=bot)
+
+# Keyboard with a button
+keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Press me!", callback_data="button_pressed")]
+])
+
+@dp.message(CommandStart())
+async def start_handler(message: types.Message):
+    await message.answer("Hello! Press the button or send me a message.", reply_markup=keyboard)
+
+@dp.callback_query()
+async def button_handler(callback: types.CallbackQuery):
+    await callback.answer("Button pressed!")
+    await callback.message.answer("You pressed the button!")
+
+@dp.message()
+async def message_handler(message: types.Message):
+    await message.reply(f"You said: {message.text}")
+
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)
 ```
 
 ### 📄 nodes.json
@@ -971,649 +1197,241 @@ if not FLOW_FILE_PATH:
 {
   "nodes": [
     {
-      "id": "dndnode_3",
-      "type": "MessageTriggerNode",
+      "id": "dndnode_1752177694533_2",
+      "type": "CommandTriggerNode",
       "position": {
-        "x": 998.758500144829,
-        "y": 2131.389457003139
+        "x": -3038.845261885198,
+        "y": 597.2072670763532
       },
       "data": {
-        "type": "text",
-        "filter": "command",
-        "context": {
-          "value": "/start"
-        },
-        "messageText": "Familyangizni kiriting"
+        "command": "/start"
       },
-      "width": 400,
-      "height": 530,
+      "width": 320,
+      "height": 196,
       "selected": false,
       "dragging": false,
       "positionAbsolute": {
-        "x": 998.758500144829,
-        "y": 2131.389457003139
+        "x": -3038.845261885198,
+        "y": 597.2072670763532
       }
     },
     {
-      "id": "dndnode_4",
+      "id": "dndnode_1752177700013_3",
       "type": "SendTextMessageNode",
       "position": {
-        "x": 1010,
-        "y": 2740
+        "x": -3214.414199185657,
+        "y": 885.2147025463786
       },
       "data": {
         "recipients": {
           "sendToSender": true,
           "additionalIds": []
         },
-        "messageText": "Assalomu Alekum tz sotib qoch kursi botiga xush kelibsiz",
-        "parseMode": "None",
-        "buttons": [
-          [
-            {
-              "id": "btn-1751742748572",
-              "text": "ro'yxatdan o'tish",
-              "type": "reply"
-            }
+        "keyboard": {
+          "active": "reply",
+          "inline": [],
+          "reply": [
+            [
+              {
+                "id": "btn-1752177745984",
+                "text": "oddiy button",
+                "type": "reply"
+              },
+              {
+                "id": "btn-1752177764225",
+                "text": "google.com",
+                "type": "web_app",
+                "webApp": {
+                  "url": "https://google.com"
+                }
+              },
+              {
+                "id": "btn-1752177765796",
+                "text": "📱 Kontaktimni yuborish",
+                "type": "request_contact"
+              },
+              {
+                "id": "btn-1752177766564",
+                "text": "📍 Joylashuvimni yuborish",
+                "type": "request_location"
+              }
+            ],
+            [
+              {
+                "id": "btn-1752177777604",
+                "text": "📊 So'rovnoma yaratish (regular)",
+                "type": "request_poll",
+                "pollType": "regular"
+              },
+              {
+                "id": "btn-1752177780354",
+                "text": "📊 So'rovnoma yaratish (quiz)",
+                "type": "request_poll",
+                "pollType": "quiz"
+              }
+            ]
           ]
-        ]
-      },
-      "width": 400,
-      "height": 257,
-      "selected": false,
-      "positionAbsolute": {
-        "x": 1009.8796938244038,
-        "y": 2742.502822902669
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_7",
-      "type": "ReplyButtonTriggerNode",
-      "position": {
-        "x": -131.9586988059396,
-        "y": 1789.9701225187594
-      },
-      "data": {
-        "selectedButtons": ["ro'yxatdan o'tish", "Ro'yxatdan o'tish"]
-      },
-      "width": 320,
-      "height": 169,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -131.9586988059396,
-        "y": 1789.9701225187594
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_8",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": -178.5446818842657,
-        "y": 2068.0242645371136
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
         },
-        "messageText": "Iltmos telefon raqamingizni yuboring",
-        "parseMode": "None",
-        "buttons": [
-          [
-            {
-              "id": "btn-1751742833106",
-              "text": "📱 Kontakt",
-              "type": "request_contact"
-            }
-          ]
-        ]
-      },
-      "width": 400,
-      "height": 530,
-      "selected": false,
-      "dragging": false
-    },
-    {
-      "id": "dndnode_9",
-      "type": "MessageTriggerNode", // <--- O'ZGARTIRILDI
-      "position": {
-        "x": -132.5348985878946,
-        "y": 2673.0858638282957
-      },
-      "data": {
-        "type": "contact", // <--- QO'SHILDI
-        "filter": "any", // <--- QO'SHILDI
-        "context": {}
-      },
-      "width": 320,
-      "height": 169,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -132.5348985878946,
-        "y": 2673.0858638282957
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_10",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": -124.86660137183269,
-        "y": 3005.1815444286262
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
-        },
-        "messageText": "Iltimos joylashuvingizni kiriting",
-        "parseMode": "None",
-        "buttons": [
-          [
-            {
-              "id": "btn-1751742892939",
-              "text": "📍 Lokatsiya",
-              "type": "request_location"
-            }
-          ]
-        ]
-      },
-      "width": 400,
-      "height": 530,
-      "selected": false,
-      "dragging": false
-    },
-    {
-      "id": "dndnode_11",
-      "type": "ReplyButtonTriggerNode",
-      "position": {
-        "x": -89.64036079749326,
-        "y": 3599.3322878980885
-      },
-      "data": {
-        "selectedButtons": ["📍 Lokatsiya"]
-      },
-      "width": 320,
-      "height": 169,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -89.64036079749326,
-        "y": 3599.3322878980885
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_12",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": -128.94038402981028,
-        "y": 3827.4042188972226
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
-        },
-        "messageText": "Uylanganmisiz",
-        "parseMode": "None",
-        "buttons": [
-          [
-            {
-              "id": "btn-1751742928047",
-              "text": "Ha",
-              "type": "reply"
-            },
-            {
-              "id": "btn-1751742931953",
-              "text": "Yo'q",
-              "type": "reply"
-            }
-          ]
-        ]
-      },
-      "width": 400,
-      "height": 530,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -128.94038402981028,
-        "y": 3827.4042188972226
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_13",
-      "type": "ReplyButtonTriggerNode",
-      "position": {
-        "x": -513.2058287419962,
-        "y": 4424.763473819695
-      },
-      "data": {
-        "selectedButtons": ["Ha"]
-      },
-      "width": 320,
-      "height": 193,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -513.2058287419962,
-        "y": 4424.763473819695
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_14",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": -572.2941872663575,
-        "y": 4803.744634422446
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
-        },
-        "messageText": "Bo'ydoq emasligingizdan hursandman",
+        "messageText": "Salom oshn",
         "parseMode": "None"
       },
       "width": 400,
-      "height": 530,
+      "height": 498,
       "selected": false,
       "dragging": false,
       "positionAbsolute": {
-        "x": -572.2941872663575,
-        "y": 4803.744634422446
+        "x": -3214.414199185657,
+        "y": 885.2147025463786
       }
     },
     {
-      "id": "dndnode_15",
-      "type": "SendTextMessageNode",
+      "id": "dndnode_1752177803088_0",
+      "type": "CommandTriggerNode",
       "position": {
-        "x": -187.4868458599613,
-        "y": 5406.399058369585
+        "x": -2430,
+        "y": 600
       },
       "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
-        },
-        "messageText": "Ma'lumotlaringizni adminga jo'natdim tez orada bog'lanam",
-        "parseMode": "None"
-      },
-      "width": 400,
-      "height": 530,
-      "selected": false,
-      "dragging": false,
-      "positionAbsolute": {
-        "x": -187.4868458599613,
-        "y": 5406.399058369585
-      }
-    },
-    {
-      "id": "dndnode_19",
-      "type": "ReplyButtonTriggerNode",
-      "position": {
-        "x": 281.62243925130485,
-        "y": 4419.879161017825
-      },
-      "data": {
-        "selectedButtons": ["Yo'q"]
+        "command": "/help"
       },
       "width": 320,
-      "height": 193,
-      "selected": false,
-      "positionAbsolute": {
-        "x": 281.62243925130485,
-        "y": 4419.879161017825
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_21",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": 210.32820993866676,
-        "y": 4735.013105403038
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
-        },
-        "messageText": "Siz uchun afsusdaman tezro uylaning",
-        "parseMode": "None"
-      },
-      "width": 400,
-      "height": 530,
+      "height": 196,
       "selected": false,
       "dragging": false,
       "positionAbsolute": {
-        "x": 210.32820993866676,
-        "y": 4735.013105403038
+        "x": -2427.5441913576155,
+        "y": 600.7865282287377
       }
     },
     {
-      "id": "dndnode_0",
-      "type": "MessageTriggerNode",
-      "position": {
-        "x": -157.74199782446624,
-        "y": 688.3148655163712
-      },
-      "data": {
-        "type": "text",
-        "filter": "command",
-        "context": {
-          "value": "/start"
-        }
-      },
-      "width": 400,
-      "height": 327,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -157.74199782446624,
-        "y": 688.3148655163712
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_1",
+      "id": "dndnode_1752177803088_1",
       "type": "SendTextMessageNode",
       "position": {
-        "x": -163.6358458176362,
-        "y": 1111.8844250813556
+        "x": -2520,
+        "y": 890
       },
       "data": {
         "recipients": {
           "sendToSender": true,
           "additionalIds": []
         },
-        "messageText": "Salom kazzob botga xush kelibsiz",
-        "parseMode": "None",
-        "buttons": [
-          [
-            {
-              "id": "btn-1751751011182",
-              "text": "Ro'yxatdan o'tish",
-              "type": "reply"
-            }
+        "keyboard": {
+          "active": "inline",
+          "inline": [
+            [
+              {
+                "id": "btn-1752177846830",
+                "text": "callback buttton",
+                "type": "callback",
+                "value": "call_back_data"
+              },
+              {
+                "id": "btn-1752177862801",
+                "text": "seezntv.uz",
+                "type": "callback",
+                "value": "https://seezntv.uz"
+              },
+              {
+                "id": "btn-1752177883130",
+                "text": "seezntv",
+                "type": "url",
+                "value": "https://sezntv.uz"
+              }
+            ],
+            [
+              {
+                "id": "btn-1752177906417",
+                "text": "web app seezntv",
+                "type": "web_app",
+                "webApp": {
+                  "url": "https://seezntv.uz"
+                }
+              }
+            ]
+          ],
+          "reply": [
+            [
+              {
+                "id": "btn-1752177745984",
+                "text": "oddiy button",
+                "type": "reply"
+              },
+              {
+                "id": "btn-1752177764225",
+                "text": "google.com",
+                "type": "web_app",
+                "webApp": {
+                  "url": "https://google.com"
+                }
+              },
+              {
+                "id": "btn-1752177765796",
+                "text": "📱 Kontaktimni yuborish",
+                "type": "request_contact"
+              },
+              {
+                "id": "btn-1752177766564",
+                "text": "📍 Joylashuvimni yuborish",
+                "type": "request_location"
+              }
+            ],
+            [
+              {
+                "id": "btn-1752177777604",
+                "text": "📊 So'rovnoma yaratish (regular)",
+                "type": "request_poll",
+                "pollType": "regular"
+              },
+              {
+                "id": "btn-1752177780354",
+                "text": "📊 So'rovnoma yaratish (quiz)",
+                "type": "request_poll",
+                "pollType": "quiz"
+              }
+            ]
           ]
-        ]
-      },
-      "width": 400,
-      "height": 530,
-      "selected": false,
-      "dragging": false,
-      "positionAbsolute": {
-        "x": -163.6358458176362,
-        "y": 1111.8844250813556
-      }
-    },
-    {
-      "id": "dndnode_2",
-      "type": "MessageTriggerNode",
-      "position": {
-        "x": 996.1053977677254,
-        "y": 1800.954390725774
-      },
-      "data": {
-        "type": "text",
-        "filter": "any",
-        "context": {}
-      },
-      "width": 400,
-      "height": 257,
-      "selected": false,
-      "positionAbsolute": {
-        "x": 996.1053977677254,
-        "y": 1800.954390725774
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_3",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": 998.758500144829,
-        "y": 2131.389457003139
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
         },
-        "messageText": "Familyangizni kiriting",
+        "messageText": "Salom oshna",
         "parseMode": "None"
       },
       "width": 400,
-      "height": 530,
-      "selected": false,
+      "height": 498,
+      "selected": true,
       "dragging": false,
       "positionAbsolute": {
-        "x": 998.758500144829,
-        "y": 2131.389457003139
+        "x": -2521.716312818528,
+        "y": 885.4468153667508
       }
-    },
-    {
-      "id": "dndnode_4",
-      "type": "MessageTriggerNode",
-      "position": {
-        "x": 1010,
-        "y": 2740
-      },
-      "data": {
-        "type": "text",
-        "filter": "any",
-        "context": {}
-      },
-      "width": 400,
-      "height": 257,
-      "selected": false,
-      "positionAbsolute": {
-        "x": 1009.8796938244038,
-        "y": 2742.502822902669
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_5",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": 1035.462702710271,
-        "y": 3132.6810748558128
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
-        },
-        "messageText": "Adminga yuborildi",
-        "parseMode": "None"
-      },
-      "width": 400,
-      "height": 530,
-      "selected": false,
-      "dragging": false
-    },
-    {
-      "id": "dndnode_0",
-      "type": "MessageTriggerNode",
-      "position": {
-        "x": -157.74199782446624,
-        "y": 688.3148655163712
-      },
-      "data": {
-        "type": "text",
-        "filter": "command",
-        "context": {
-          "value": "/start"
-        }
-      },
-      "width": 400,
-      "height": 327,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -157.74199782446624,
-        "y": 688.3148655163712
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_1",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": -163.6358458176362,
-        "y": 1111.8844250813556
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
-        },
-        "messageText": "Salom kazzob botga xush kelibsiz",
-        "parseMode": "None",
-        "buttons": [
-          [
-            {
-              "id": "btn-1751751011182",
-              "text": "Ro'yxatdan o'tish",
-              "type": "reply"
-            }
-          ]
-        ]
-      },
-      "width": 400,
-      "height": 530,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -163.6358458176362,
-        "y": 1111.8844250813556
-      },
-      "dragging": false
     }
   ],
   "edges": [
     {
-      "source": "dndnode_3",
-      "sourceHandle": "out",
-      "target": "dndnode_4",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_3out-dndnode_4"
-    },
-    {
-      "source": "dndnode_7",
+      "source": "dndnode_1752177694533_2",
       "sourceHandle": null,
-      "target": "dndnode_8",
+      "target": "dndnode_1752177700013_3",
       "targetHandle": null,
-      "id": "reactflow__edge-dndnode_7-dndnode_8"
-    },
-    {
-      "source": "dndnode_8",
-      "sourceHandle": null,
-      "target": "dndnode_9",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_8-dndnode_9"
-    },
-    {
-      "source": "dndnode_9",
-      "sourceHandle": null,
-      "target": "dndnode_10",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_9-dndnode_10"
-    },
-    {
-      "source": "dndnode_10",
-      "sourceHandle": null,
-      "target": "dndnode_11",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_10-dndnode_11"
-    },
-    {
-      "source": "dndnode_11",
-      "sourceHandle": null,
-      "target": "dndnode_12",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_11-dndnode_12"
-    },
-    {
-      "source": "dndnode_12",
-      "sourceHandle": null,
-      "target": "dndnode_13",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_12-dndnode_13",
+      "type": "smart-edge",
+      "style": {
+        "strokeWidth": 1.5,
+        "stroke": "#495057"
+      },
+      "animated": false,
+      "id": "reactflow__edge-dndnode_1752177694533_2-dndnode_1752177700013_3",
       "selected": false
     },
     {
-      "source": "dndnode_13",
+      "source": "dndnode_1752177803088_0",
       "sourceHandle": null,
-      "target": "dndnode_14",
+      "target": "dndnode_1752177803088_1",
       "targetHandle": null,
-      "id": "reactflow__edge-dndnode_13-dndnode_14",
+      "type": "smart-edge",
+      "style": {
+        "strokeWidth": 1.5,
+        "stroke": "#495057"
+      },
+      "animated": false,
+      "id": "edge-dndnode_1752177803088_0-dndnode_1752177803088_1",
       "selected": false
-    },
-    {
-      "source": "dndnode_14",
-      "sourceHandle": null,
-      "target": "dndnode_15",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_14-dndnode_15",
-      "selected": false
-    },
-    {
-      "source": "dndnode_12",
-      "sourceHandle": null,
-      "target": "dndnode_19",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_12-dndnode_19"
-    },
-    {
-      "source": "dndnode_19",
-      "sourceHandle": null,
-      "target": "dndnode_21",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_19-dndnode_21"
-    },
-    {
-      "source": "dndnode_21",
-      "sourceHandle": null,
-      "target": "dndnode_15",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_21-dndnode_15"
-    },
-    {
-      "source": "dndnode_3",
-      "sourceHandle": null,
-      "target": "dndnode_4",
-      "targetHandle": "in",
-      "id": "reactflow__edge-dndnode_3-dndnode_4",
-      "selected": false
-    },
-    {
-      "source": "dndnode_2",
-      "sourceHandle": "out",
-      "target": "dndnode_3",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_2out-dndnode_3"
-    },
-    {
-      "source": "dndnode_4",
-      "sourceHandle": "out",
-      "target": "dndnode_5",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_4out-dndnode_5"
-    },
-    {
-      "source": "dndnode_0",
-      "sourceHandle": "out",
-      "target": "dndnode_1",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_0out-dndnode_1"
-    },
-    {
-      "source": "dndnode_1",
-      "sourceHandle": null,
-      "target": "dndnode_7",
-      "targetHandle": null,
-      "id": "reactflow__edge-dndnode_1-dndnode_7"
     }
   ]
 }

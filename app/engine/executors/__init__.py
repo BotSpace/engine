@@ -11,13 +11,12 @@ from app.engine.handlers.message_handlers import SendTextHandler
 class NodeExecutor:
     """
     Action turidagi node'larni ularning turiga qarab to'g'ri "handler"ga yuboruvchi dispetcher.
-    Bu klassni yangi action'lar qo'shish uchun o'zgartirish shart emas (Open/Closed Principle).
-    Faqatgina _handlers lug'atiga yangi yozuv qo'shiladi.
     """
     def __init__(self, bot: Bot):
         self.bot = bot
         self.logger = logging.getLogger(self.__class__.__name__)
         
+        # Node turi va uni bajaruvchi Handler klassi o'rtasidagi bog'liqlik
         self._handlers: Dict[str, Type[ActionHandler]] = {
             "SendTextMessageNode": SendTextHandler,
             "SendPhotoNode": SendPhotoHandler,
@@ -27,7 +26,7 @@ class NodeExecutor:
             "CustomCodeNode": CustomCodeHandler,
         }
 
-    async def execute(self, node: Dict[str, Any], chat_id: int):
+    async def execute(self, node: Dict[str, Any], chat_id: int, context: Dict[str, Any]):
         node_type = node.get('type')
         handler_class = self._handlers.get(node_type)
 
@@ -36,8 +35,10 @@ class NodeExecutor:
             return
 
         try:
+            # Handler'dan obyekt yaratamiz va `handle` metodini chaqiramiz
             handler_instance = handler_class(self.bot)
-            await handler_instance.handle(node.get('data', {}), chat_id)
+            await handler_instance.handle(node.get('data', {}), chat_id, context)
+            self.logger.info(f"Node (ID: {node.get('id')}) muvaffaqiyatli bajarildi.")
         except Exception as e:
             self.logger.error(
                 f"Node (ID: {node.get('id')}, Turi: {node_type}) bajarilishida kutilmagan xatolik: {e}",

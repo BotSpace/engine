@@ -1,25 +1,27 @@
 # app/main.py (YANGILANGAN VERSIYA)
 
 import logging
-import requests
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.client.default import DefaultBotProperties # <--- QO'SHILDI: import
+from aiogram.client.default import DefaultBotProperties  # <--- QO'SHILDI: import
 
-from env import BOT_TOKEN, FLOW_FILE_PATH
+from env import BASE_WEBHOOK_URL, BOT_TOKEN, FLOW_FILE_PATH
 from app.engine.flow_controller import FlowController
 from app.handlers.common import router as common_router
 
+
 # --- Webhook Sozlamalari (5-qadamda to'ldiriladi) ---
-BASE_WEBHOOK_URL = "https://6ded-84-54-120-94.ngrok-free.app"
 WEBHOOK_PATH = f"/bot/{BOT_TOKEN}"
 WEBHOOK_URL = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
 # ----------------------------
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,12 +30,12 @@ async def lifespan(app: FastAPI):
     default_properties = DefaultBotProperties(parse_mode="HTML")
     bot = Bot(token=BOT_TOKEN, default=default_properties)
     # --- O'ZGARISH TUGADI ---
-    
+
     controller = FlowController(bot=bot, schema_path=FLOW_FILE_PATH)
-    
+
     dp = Dispatcher(storage=MemoryStorage(), controller=controller)
     dp.include_router(common_router)
-    
+
     app.state.bot = bot
     app.state.dispatcher = dp
 
@@ -44,13 +46,21 @@ async def lifespan(app: FastAPI):
     await bot.delete_webhook()
     await bot.session.close()
 
+
 app = FastAPI(lifespan=lifespan)
+
+
+# FastAPI welcome page
+@app.get("/")
+async def welcome():
+    return {"message": "Welcome to the Bot API!"}
+
 
 @app.post(WEBHOOK_PATH)
 async def bot_webhook(request: Request):
     dispatcher: Dispatcher = request.app.state.dispatcher
     bot: Bot = request.app.state.bot
-    
+
     update = types.Update(**(await request.json()))
     await dispatcher.feed_update(bot=bot, update=update)
-    return {'status': 'ok'}
+    return {"status": "ok"}

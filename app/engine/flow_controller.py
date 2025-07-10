@@ -1,14 +1,19 @@
 # app/engine/flow_controller.py
 
 import logging
+import re
+from typing import Dict, Any
+
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery, Update
+from aiogram.types import Message, CallbackQuery
+from geopy.distance import geodesic # pip install geopy
 
 from .fsm import FlowState
 from .loader import SchemaLoader
 from .executors import NodeExecutor
 from .state_manager import StateManager
+
 
 class FlowController:
     def __init__(self, bot: Bot, schema_path: str):
@@ -17,101 +22,220 @@ class FlowController:
         self.executor = NodeExecutor(bot)
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def handle_update(self, event: Message | CallbackQuery, fsm_context: FSMContext):
+    # --- YORDAMCHI FUNKSIYA (RADIUSNI TEKSHIRISH UCHUN) ---
+    def _check_radius(self, event_location, radius_context: Dict[str, Any]) -> bool:
+        """Berilgan nuqta belgilangan radius ichidaligini tekshiradi."""
+        try:
+            # Frontend'dan kelgan qiymatlarni float'ga o'giramiz
+            center_lat = float(radius_context.get("lat"))
+            center_lng = float(radius_context.get("lng"))
+            radius_km = float(radius_context.get("km"))
+            
+            # Foydalanuvchi yuborgan lokatsiya
+            user_location = (event_location.latitude, event_location.longitude)
+            # Markaziy nuqta
+            center_point = (center_lat, center_lng)
+            
+            # Ikki nuqta orasidagi masofani hisoblaymiz
+            distance = geodesic(user_location, center_point).kilometers
+            
+            self.logger.debug(f"Radius tekshiruvi: Masofa {distance:.2f}km, Talab {radius_km}km.")
+            return distance <= radius_km
+        except (ValueError, TypeError, AttributeError):
+            # Agar frontenddan kelgan qiymatlar son bo'lmasa
+            self.logger.warning(f"Radius uchun noto'g'ri qiymatlar keldi: {radius_context}")
+            return False
+
+    async def handle_update(
+        self, event: Message | CallbackQuery, fsm_context: FSMContext
+    ):
+        # Bu metod o'zgarishsiz qoladi, avvalgi javobdagi versiya to'g'ri
         state_manager = StateManager(fsm_context)
         current_state = await fsm_context.get_state()
+        flow_context = await fsm_context.get_data()
+
+        chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
         
-        # --- XATO TUZATILGAN QISM ---
-        # Ob'ekt tipini `isinstance` yordamida tekshiramiz
-        chat_id = None
         if isinstance(event, Message):
-            chat_id = event.chat.id
+            flow_context['message'] = event
         elif isinstance(event, CallbackQuery):
-            chat_id = event.message.chat.id
+            flow_context['callback_query'] = event
 
-        if chat_id is None:
-            self.logger.warning(f"Update turidan chat_id aniqlanmadi: {type(event)}")
-            return
-        # --- TUZATISH TUGADI ---
-
-        self.logger.info(f"CHAT_ID={chat_id}: Yangi event qabul qilindi. Holat: {current_state}")
+        self.logger.info(
+            f"CHAT_ID={chat_id}: Event qabul qilindi. Holat: {current_state}"
+        )
 
         if current_state == FlowState.waiting_for_trigger:
-            node_id_to_check = await state_manager.get_waiting_node_id()
-            trigger_node = self.schema.get_node(node_id_to_check)
-            
-            if trigger_node and self._check_trigger(trigger_node, event):
-                self.logger.info(f"CHAT_ID={chat_id}: Kutilgan trigger ({node_id_to_check}) ishga tushdi.")
-                await fsm_context.clear()
-                await self._traverse(trigger_node, chat_id, fsm_context)
-            else:
-                self.logger.debug(f"CHAT_ID={chat_id}: Event kutilgan triggerga ({node_id_to_check}) mos kelmadi.")
+            paused_node_id = await state_manager.get_paused_node_id()
+            if not paused_node_id:
+                self.logger.warning(f"CHAT_ID={chat_id}: Holat 'waiting' lekin 'paused_node_id' topilmadi. Holat tozalanmoqda.")
+                await state_manager.clear_state()
+                return
+
+            possible_next_nodes = self.schema.get_next_nodes(paused_node_id)
+            for trigger_node in possible_next_nodes:
+                if "Trigger" in trigger_node.get("type", "") and self._check_trigger(trigger_node, event):
+                    self.logger.info(f"CHAT_ID={chat_id}: Kutilgan trigger ({trigger_node['id']}) ishga tushdi.")
+                    await fsm_context.clear()
+                    await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
+                    return
+            self.logger.debug(f"CHAT_ID={chat_id}: Event kutilgan triggerlarga mos kelmadi.")
         else:
             for trigger_node in self.schema.root_triggers:
                 if self._check_trigger(trigger_node, event):
                     self.logger.info(f"CHAT_ID={chat_id}: Yangi ssenariy boshlandi (Root Trigger: {trigger_node['id']})")
-                    await self._traverse(trigger_node, chat_id, fsm_context)
+                    await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
                     return
 
-    async def _traverse(self, trigger_node: dict, chat_id: int, fsm_context: FSMContext):
+    async def _traverse(self, start_node: dict, chat_id: int, fsm_context: FSMContext, flow_context: dict):
+        # Bu metod ham o'zgarishsiz qoladi
         state_manager = StateManager(fsm_context)
-        # Boshlang'ich nuqta - triggerdan keyingi node'lar
-        nodes_to_process = self.schema.get_next_nodes(trigger_node['id'])
+        nodes_to_process = [start_node]
+        last_processed_node_id = start_node["id"]
 
         while nodes_to_process:
-            node = nodes_to_process.pop(0)
-            node_type = node.get('type', '')
+            current_node = nodes_to_process.pop(0)
+            node_type = current_node.get("type", "")
+
+            if "Node" in node_type and "Trigger" not in node_type:
+                await self.executor.execute(current_node, chat_id, flow_context)
+                last_processed_node_id = current_node["id"]
             
-            if 'Trigger' in node_type:
-                self.logger.info(f"CHAT_ID={chat_id}: To'xtab, triggerni kutmoqdamiz (ID: {node['id']})")
-                await state_manager.set_wait_for_trigger(node['id'])
+            next_nodes = self.schema.get_next_nodes(current_node["id"])
+
+            if not next_nodes:
+                continue
+
+            if all("Trigger" in n.get("type", "") for n in next_nodes):
+                self.logger.info(f"CHAT_ID={chat_id}: Harakat bajarildi ({last_processed_node_id}), trigger(lar)ni kutish uchun pauza.")
+                await state_manager.set_pause_after_node(last_processed_node_id, flow_context)
                 return
-            
-            elif 'Node' in node_type:
-                await self.executor.execute(node, chat_id)
-                nodes_to_process.extend(self.schema.get_next_nodes(node['id']))
-        
+
+            nodes_to_process.extend(next_nodes)
+
         self.logger.info(f"CHAT_ID={chat_id}: Ssenariy shoxi tugadi. Holat tozalanmoqda.")
         await state_manager.clear_state()
 
-        
+    # --- _check_trigger METODINING TO'LIQ IMPLEMENTATSIYASI ---
     def _check_trigger(self, trigger_node: dict, event: Message | CallbackQuery) -> bool:
-        data, node_type = trigger_node.get('data', {}), trigger_node.get('type')
+        """Trigger shartlarini tekshiruvchi asosiy funksiya."""
+        node_type = trigger_node.get("type")
+        data = trigger_node.get("data", {})
+
+        # --- YANGI KOD: CommandTriggerNode ---
+        if node_type == "CommandTriggerNode" and isinstance(event, Message):
+            command = data.get("command")
+            if not command or not event.text:
+                return False
+            # Buyruq xabar matni bilan boshlanishini tekshiramiz (masalan, /start payload)
+            return event.text.startswith(command)
         
-        # --- 1-holat: MessageTriggerNode (matn, kontakt, lokatsiya va hk uchun) ---
-        if node_type == 'MessageTriggerNode' and isinstance(event, Message):
-            # Trigger qanday kontent turini kutayotganini aniqlaymiz
-            expected_content_type = data.get('type') # 'text', 'contact', 'location'
+        # --- MessageTriggerNode ---
+        if node_type == "MessageTriggerNode" and isinstance(event, Message):
+            expected_type = data.get("type")
+            
+            # 1. Kutilgan xabar turi va kelgan xabar turi mosligini tekshiramiz
+            if expected_type != "any" and expected_type != event.content_type:
+                return False
 
-            # 1a: Matn kutilganda (buyruq yoki oddiy matn)
-            if expected_content_type == 'text' and event.text:
-                filter_type = data.get('filter') # 'command', 'any'
-                if filter_type == 'command':
-                    expected_command = data.get('context', {}).get('value')
-                    return event.text == expected_command
-                elif filter_type == 'any':
-                    return True # Har qanday matn kelsa, True
+            # 2. Agar turlar mos kelsa, endi filterni tekshiramiz
+            filt = data.get("filter")
+            context = data.get("context", {})
 
-            # 1b: Kontakt kutilganda
-            elif expected_content_type == 'contact' and event.contact:
-                return True # Har qanday kontakt kelsa, True
+            # Agar filter yo'q yoki "har qanday" bo'lsa, trigger ishlaydi
+            if not filt or filt == "any":
+                return True
 
-            # 1c: Lokatsiya kutilganda
-            elif expected_content_type == 'location' and event.location:
-                return True # Har qanday lokatsiya kelsa, True
+            # --- Matnli filtrlar ---
+            if filt in ["equals", "contains", "starts_with", "regex", "command"]:
+                if not event.text: return False
+                value = context.get("value")
+                if value is None: return False
+                
+                if filt == "equals": return event.text == value
+                if filt == "contains": return value in event.text
+                if filt in ["starts_with", "command"]: return event.text.startswith(value)
+                if filt == "regex":
+                    try:
+                        return bool(re.match(value, event.text))
+                    except re.error:
+                        self.logger.warning(f"Noto'g'ri regex pattern: {value}")
+                        return False
+            
+            # --- Joylashuv filtri ---
+            if filt == "radius":
+                if not event.location or not context.get("radius"): return False
+                return self._check_radius(event.location, context["radius"])
 
-        # --- 2-holat: ReplyButtonTriggerNode (FAQAT matnli tugmalar uchun) ---
-        elif node_type == 'ReplyButtonTriggerNode' and isinstance(event, Message) and event.text:
-            # Trigger qaysi matn(lar)ni kutayotganini aniqlaymiz
-            expected_buttons = data.get('selectedButtons', [])
-            # Kelgan matn kutilayotgan matnlar ro'yxatida bo'lsa, True
-            return event.text in expected_buttons
+            # --- Fayl kengaytmasi filtri (faqat hujjat uchun) ---
+            if filt == "extension":
+                if not event.document or not event.document.file_name: return False
+                value = context.get("value", "").lower().lstrip('.')
+                if not value: return False
+                return event.document.file_name.lower().endswith(f".{value}")
+
+            # --- Fayl hajmi filtri ---
+            if filt == "size":
+                file_size_bytes = 0
+                if event.photo: file_size_bytes = event.photo[-1].file_size
+                elif event.video: file_size_bytes = event.video.file_size
+                elif event.audio: file_size_bytes = event.audio.file_size
+                elif event.document: file_size_bytes = event.document.file_size
+                
+                if file_size_bytes == 0: return False
+
+                try:
+                    size_context = context.get("size", {})
+                    min_mb_str = size_context.get("min")
+                    max_mb_str = size_context.get("max")
+                    file_size_mb = file_size_bytes / (1024 * 1024)
+
+                    # Minimal hajmni tekshirish
+                    if min_mb_str and file_size_mb < float(min_mb_str):
+                        return False
+                    # Maksimal hajmni tekshirish
+                    if max_mb_str and file_size_mb > float(max_mb_str):
+                        return False
+                    return True # Barcha shartlar bajarildi
+                except (ValueError, TypeError):
+                    self.logger.warning(f"Fayl hajmi uchun noto'g'ri qiymatlar: {context.get('size')}")
+                    return False
+            
+            return False # Agar hech qaysi filter mos kelmasa
+
+        # --- ReplyButtonTriggerNode ---
+        elif node_type == "ReplyButtonTriggerNode" and isinstance(event, Message):
+            selected_button: dict | None = data.get("selectedButton")
+            if not selected_button: return False
+
+            btn_type, btn_text = selected_button.get("type"), selected_button.get("text")
+            
+            if btn_type == "reply" and event.text == btn_text: return True
+            if btn_type == "request_contact" and event.contact: return True
+            if btn_type == "request_location" and event.location: return True
+            return False
+
+        # --- CallbackButtonTriggerNode & CallbackQueryTriggerNode ---
+        elif node_type in ["CallbackButtonTriggerNode", "CallbackQueryTriggerNode"] and isinstance(event, CallbackQuery):
+            if not event.data: return False
+            
+            if node_type == "CallbackButtonTriggerNode":
+                selected_callbacks = data.get("selectedCallbacks", [])
+                return event.data in selected_callbacks
+            
+            if node_type == "CallbackQueryTriggerNode":
+                filt, value = data.get("filter"), data.get("context", {}).get("value")
+                if filt == "any": return True
+                if not filt or not value: return False
+                
+                if filt == "equals" and event.data == value: return True
+                if filt == "contains" and value in event.data: return True
+                if filt == "starts_with" and event.data.startswith(value): return True
+                if filt == "regex":
+                    try:
+                        return bool(re.match(value, event.data))
+                    except re.error:
+                        return False
+            return False
         
-        # --- 3-holat: CallbackQueryTriggerNode (inline tugmalar uchun) ---
-        # Kelajakda to'ldiriladi
-        elif node_type in ['CallbackButtonTriggerNode', 'CallbackQueryTriggerNode'] and isinstance(event, CallbackQuery):
-            # Bu yerda `event.data` ni tekshirish logikasi bo'ladi
-            pass
-
-        # Agar hech qaysi shart bajarilmasa
         return False
