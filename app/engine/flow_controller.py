@@ -26,36 +26,29 @@ class FlowController:
     def _check_radius(self, event_location, radius_context: Dict[str, Any]) -> bool:
         """Berilgan nuqta belgilangan radius ichidaligini tekshiradi."""
         try:
-            # Frontend'dan kelgan qiymatlarni float'ga o'giramiz
             center_lat = float(radius_context.get("lat"))
             center_lng = float(radius_context.get("lng"))
             radius_km = float(radius_context.get("km"))
-            
-            # Foydalanuvchi yuborgan lokatsiya
             user_location = (event_location.latitude, event_location.longitude)
-            # Markaziy nuqta
             center_point = (center_lat, center_lng)
-            
-            # Ikki nuqta orasidagi masofani hisoblaymiz
             distance = geodesic(user_location, center_point).kilometers
-            
             self.logger.debug(f"Radius tekshiruvi: Masofa {distance:.2f}km, Talab {radius_km}km.")
             return distance <= radius_km
         except (ValueError, TypeError, AttributeError):
-            # Agar frontenddan kelgan qiymatlar son bo'lmasa
             self.logger.warning(f"Radius uchun noto'g'ri qiymatlar keldi: {radius_context}")
             return False
 
     async def handle_update(
         self, event: Message | CallbackQuery, fsm_context: FSMContext
     ):
-        # Bu metod o'zgarishsiz qoladi, avvalgi javobdagi versiya to'g'ri
         state_manager = StateManager(fsm_context)
         current_state = await fsm_context.get_state()
         flow_context = await fsm_context.get_data()
 
         chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
         
+        # event obyektini flow_context'ga qo'shib qo'yamiz.
+        # Bu CustomCodeNode kabi joylarda kerak bo'ladi
         if isinstance(event, Message):
             flow_context['message'] = event
         elif isinstance(event, CallbackQuery):
@@ -76,19 +69,23 @@ class FlowController:
             for trigger_node in possible_next_nodes:
                 if "Trigger" in trigger_node.get("type", "") and self._check_trigger(trigger_node, event):
                     self.logger.info(f"CHAT_ID={chat_id}: Kutilgan trigger ({trigger_node['id']}) ishga tushdi.")
-                    await fsm_context.clear()
-                    await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
+                    # --- O'ZGARISH ---
+                    # _traverse'ga qaysi nuqtaga qaytish kerakligini aytib yuboramiz
+                    await self._traverse(trigger_node, chat_id, fsm_context, flow_context, return_to_node_id=paused_node_id)
                     return
             self.logger.debug(f"CHAT_ID={chat_id}: Event kutilgan triggerlarga mos kelmadi.")
         else:
+            # Holat bo'sh bo'lganda (birinchi marta)
             for trigger_node in self.schema.root_triggers:
                 if self._check_trigger(trigger_node, event):
                     self.logger.info(f"CHAT_ID={chat_id}: Yangi ssenariy boshlandi (Root Trigger: {trigger_node['id']})")
                     await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
                     return
 
-    async def _traverse(self, start_node: dict, chat_id: int, fsm_context: FSMContext, flow_context: dict):
-        # Bu metod ham o'zgarishsiz qoladi
+    # --- O'ZGARISH: `_traverse` METODI SIGNATURASI VA MANTIG'I O'ZGARDI ---
+    async def _traverse(
+        self, start_node: dict, chat_id: int, fsm_context: FSMContext, flow_context: dict, return_to_node_id: str | None = None
+    ):
         state_manager = StateManager(fsm_context)
         nodes_to_process = [start_node]
         last_processed_node_id = start_node["id"]
@@ -97,61 +94,65 @@ class FlowController:
             current_node = nodes_to_process.pop(0)
             node_type = current_node.get("type", "")
 
+            # Action node'larni (masalan, xabar yuborish) bajaramiz
             if "Node" in node_type and "Trigger" not in node_type:
                 await self.executor.execute(current_node, chat_id, flow_context)
                 last_processed_node_id = current_node["id"]
             
+            # Joriy node'dan keyingi bog'langan node'larni olamiz
             next_nodes = self.schema.get_next_nodes(current_node["id"])
 
+            # Agar bu node oxirgi bo'lsa (undan keyin hech narsa ulanmagan bo'lsa)
             if not next_nodes:
                 continue
 
+            # Agar keyingi barcha node'lar trigger bo'lsa, demak bu pauza nuqtasi
             if all("Trigger" in n.get("type", "") for n in next_nodes):
                 self.logger.info(f"CHAT_ID={chat_id}: Harakat bajarildi ({last_processed_node_id}), trigger(lar)ni kutish uchun pauza.")
                 await state_manager.set_pause_after_node(last_processed_node_id, flow_context)
-                return
+                return # traverse'dan chiqib ketamiz, chunki pauza qilindi
 
+            # Aks holda, keyingi action node'larni navbatga qo'shamiz
             nodes_to_process.extend(next_nodes)
 
-        self.logger.info(f"CHAT_ID={chat_id}: Ssenariy shoxi tugadi. Holat tozalanmoqda.")
-        await state_manager.clear_state()
+        # --- YENGI MANTIQ: `while` tsikli tugagandan so'ng... ---
+        if return_to_node_id:
+            # Agar bizga qaytish manzili berilgan bo'lsa, demak, bitta shoxchani tugatdik.
+            # Endi yana o'sha manzilga qaytib, boshqa triggerlarni kutamiz.
+            self.logger.info(f"CHAT_ID={chat_id}: Harakatlar shoxi tugadi. Avvalgi kutish holatiga qaytilmoqda (Node ID: {return_to_node_id}).")
+            await state_manager.set_pause_after_node(return_to_node_id, flow_context)
+        else:
+            # Agar qaytish manzili bo'lmasa, demak, bu boshlang'ich shox edi va
+            # u tabiiy ravishda tugadi. Endi holatni tozalash mumkin.
+            self.logger.info(f"CHAT_ID={chat_id}: Ssenariy shoxi tugadi. Holat tozalanmoqda.")
+            await state_manager.clear_state()
 
-    # --- _check_trigger METODINING TO'LIQ IMPLEMENTATSIYASI ---
+    # --- _check_trigger METODI O'ZGARISHSIZ QOLADI ---
     def _check_trigger(self, trigger_node: dict, event: Message | CallbackQuery) -> bool:
         """Trigger shartlarini tekshiruvchi asosiy funksiya."""
         node_type = trigger_node.get("type")
         data = trigger_node.get("data", {})
 
-        # --- YANGI KOD: CommandTriggerNode ---
+        # --- CommandTriggerNode ---
         if node_type == "CommandTriggerNode" and isinstance(event, Message):
             command = data.get("command")
             if not command or not event.text:
                 return False
-            # Buyruq xabar matni bilan boshlanishini tekshiramiz (masalan, /start payload)
             return event.text.startswith(command)
         
         # --- MessageTriggerNode ---
         if node_type == "MessageTriggerNode" and isinstance(event, Message):
             expected_type = data.get("type")
-            
-            # 1. Kutilgan xabar turi va kelgan xabar turi mosligini tekshiramiz
             if expected_type != "any" and expected_type != event.content_type:
                 return False
-
-            # 2. Agar turlar mos kelsa, endi filterni tekshiramiz
             filt = data.get("filter")
             context = data.get("context", {})
-
-            # Agar filter yo'q yoki "har qanday" bo'lsa, trigger ishlaydi
             if not filt or filt == "any":
                 return True
-
-            # --- Matnli filtrlar ---
             if filt in ["equals", "contains", "starts_with", "regex", "command"]:
                 if not event.text: return False
                 value = context.get("value")
                 if value is None: return False
-                
                 if filt == "equals": return event.text == value
                 if filt == "contains": return value in event.text
                 if filt in ["starts_with", "command"]: return event.text.startswith(value)
@@ -161,55 +162,39 @@ class FlowController:
                     except re.error:
                         self.logger.warning(f"Noto'g'ri regex pattern: {value}")
                         return False
-            
-            # --- Joylashuv filtri ---
             if filt == "radius":
                 if not event.location or not context.get("radius"): return False
                 return self._check_radius(event.location, context["radius"])
-
-            # --- Fayl kengaytmasi filtri (faqat hujjat uchun) ---
             if filt == "extension":
                 if not event.document or not event.document.file_name: return False
                 value = context.get("value", "").lower().lstrip('.')
                 if not value: return False
                 return event.document.file_name.lower().endswith(f".{value}")
-
-            # --- Fayl hajmi filtri ---
             if filt == "size":
                 file_size_bytes = 0
                 if event.photo: file_size_bytes = event.photo[-1].file_size
                 elif event.video: file_size_bytes = event.video.file_size
                 elif event.audio: file_size_bytes = event.audio.file_size
                 elif event.document: file_size_bytes = event.document.file_size
-                
                 if file_size_bytes == 0: return False
-
                 try:
                     size_context = context.get("size", {})
                     min_mb_str = size_context.get("min")
                     max_mb_str = size_context.get("max")
                     file_size_mb = file_size_bytes / (1024 * 1024)
-
-                    # Minimal hajmni tekshirish
-                    if min_mb_str and file_size_mb < float(min_mb_str):
-                        return False
-                    # Maksimal hajmni tekshirish
-                    if max_mb_str and file_size_mb > float(max_mb_str):
-                        return False
-                    return True # Barcha shartlar bajarildi
+                    if min_mb_str and file_size_mb < float(min_mb_str): return False
+                    if max_mb_str and file_size_mb > float(max_mb_str): return False
+                    return True
                 except (ValueError, TypeError):
                     self.logger.warning(f"Fayl hajmi uchun noto'g'ri qiymatlar: {context.get('size')}")
                     return False
-            
-            return False # Agar hech qaysi filter mos kelmasa
+            return False
 
         # --- ReplyButtonTriggerNode ---
         elif node_type == "ReplyButtonTriggerNode" and isinstance(event, Message):
             selected_button: dict | None = data.get("selectedButton")
             if not selected_button: return False
-
             btn_type, btn_text = selected_button.get("type"), selected_button.get("text")
-            
             if btn_type == "reply" and event.text == btn_text: return True
             if btn_type == "request_contact" and event.contact: return True
             if btn_type == "request_location" and event.location: return True
@@ -218,16 +203,13 @@ class FlowController:
         # --- CallbackButtonTriggerNode & CallbackQueryTriggerNode ---
         elif node_type in ["CallbackButtonTriggerNode", "CallbackQueryTriggerNode"] and isinstance(event, CallbackQuery):
             if not event.data: return False
-            
             if node_type == "CallbackButtonTriggerNode":
                 selected_callbacks = data.get("selectedCallbacks", [])
                 return event.data in selected_callbacks
-            
             if node_type == "CallbackQueryTriggerNode":
                 filt, value = data.get("filter"), data.get("context", {}).get("value")
                 if filt == "any": return True
                 if not filt or not value: return False
-                
                 if filt == "equals" and event.data == value: return True
                 if filt == "contains" and value in event.data: return True
                 if filt == "starts_with" and event.data.startswith(value): return True

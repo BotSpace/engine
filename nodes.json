@@ -1,11 +1,30 @@
 {
   "nodes": [
     {
-      "id": "dndnode_1752178576685_5",
+      "id": "dndnode_1752224492698_7",
+      "type": "CommandTriggerNode",
+      "position": {
+        "x": -2390,
+        "y": 1280
+      },
+      "data": {
+        "command": "/start"
+      },
+      "width": 320,
+      "height": 196,
+      "selected": false,
+      "dragging": false,
+      "positionAbsolute": {
+        "x": -2393.2552179232607,
+        "y": 1280
+      }
+    },
+    {
+      "id": "dndnode_1752224500371_8",
       "type": "SendTextMessageNode",
       "position": {
-        "x": -2500,
-        "y": 1030
+        "x": -2430,
+        "y": 1570
       },
       "data": {
         "recipients": {
@@ -18,13 +37,8 @@
           "reply": [
             [
               {
-                "id": "btn-1752178710300",
+                "id": "btn-1752224661933",
                 "text": "get my id",
-                "type": "reply"
-              },
-              {
-                "id": "btn-1752178723663",
-                "text": "get hi",
                 "type": "reply"
               }
             ]
@@ -37,131 +51,60 @@
       "height": 498,
       "selected": false,
       "positionAbsolute": {
-        "x": -2501.197924471546,
-        "y": 1028.8997405589432
+        "x": -2425.425466417071,
+        "y": 1570.6031652209942
       },
       "dragging": false
     },
     {
-      "id": "dndnode_1752178597201_6",
-      "type": "CommandTriggerNode",
-      "position": {
-        "x": -2460,
-        "y": 750
-      },
-      "data": {
-        "command": "/start"
-      },
-      "width": 320,
-      "height": 196,
-      "selected": false,
-      "positionAbsolute": {
-        "x": -2462.6112749453305,
-        "y": 754.9498661287198
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_1752178729431_7",
-      "type": "CustomCodeNode",
-      "position": {
-        "x": -3028.2673999439817,
-        "y": 1949.7805091666814
-      },
-      "data": {
-        "nodeTitle": "User ID olib berish",
-        "pythonCode": "await  message.answer(text=message.from_user.id)"
-      },
-      "width": 320,
-      "height": 298,
-      "selected": false,
-      "dragging": false,
-      "positionAbsolute": {
-        "x": -3028.2673999439817,
-        "y": 1949.7805091666814
-      }
-    },
-    {
-      "id": "dndnode_1752178795725_8",
-      "type": "SendTextMessageNode",
-      "position": {
-        "x": -2075.971657825435,
-        "y": 1960.9976804174155
-      },
-      "data": {
-        "recipients": {
-          "sendToSender": true,
-          "additionalIds": []
-        },
-        "keyboard": {
-          "active": "inline",
-          "inline": [],
-          "reply": []
-        },
-        "messageText": "Salom bo'tam nima gaplar",
-        "parseMode": "None"
-      },
-      "width": 400,
-      "height": 498,
-      "selected": true,
-      "positionAbsolute": {
-        "x": -2075.971657825435,
-        "y": 1960.9976804174155
-      },
-      "dragging": false
-    },
-    {
-      "id": "dndnode_1752178936283_9",
+      "id": "dndnode_1752224667843_9",
       "type": "ReplyButtonTriggerNode",
       "position": {
-        "x": -2717.020203307577,
-        "y": 1619.476188510012
+        "x": -2000.7059794306506,
+        "y": 2156.9744028982886
       },
       "data": {
         "selectedButton": {
-          "id": "btn-1752178710300",
+          "id": "btn-1752224661933",
           "text": "get my id",
           "type": "reply"
         }
       },
       "width": 320,
-      "height": 176,
+      "height": 148,
       "selected": false,
       "positionAbsolute": {
-        "x": -2717.020203307577,
-        "y": 1619.476188510012
+        "x": -2000.7059794306506,
+        "y": 2156.9744028982886
       },
       "dragging": false
     },
     {
-      "id": "dndnode_1752178959829_2",
-      "type": "ReplyButtonTriggerNode",
+      "id": "dndnode_1752224681670_10",
+      "type": "CustomCodeNode",
       "position": {
-        "x": -2079.1661754120314,
-        "y": 1662.173673192472
+        "x": -2015.4603880392576,
+        "y": 2424.200755901081
       },
       "data": {
-        "selectedButton": {
-          "id": "btn-1752178723663",
-          "text": "get hi",
-          "type": "reply"
-        }
+        "nodeTitle": "get user id",
+        "pythonCode": "await message.answer(text=message.from_user.id)\n"
       },
       "width": 320,
-      "height": 176,
-      "selected": false,
+      "height": 298,
+      "selected": true,
       "positionAbsolute": {
-        "x": -2079.1661754120314,
-        "y": 1662.173673192472
+        "x": -2015.4603880392576,
+        "y": 2424.200755901081
       },
       "dragging": false
     }
   ],
   "edges": [
     {
-      "source": "dndnode_1752178597201_6",
+      "source": "dndnode_1752224492698_7",
       "sourceHandle": null,
-      "target": "dndnode_1752178576685_5",
+      "target": "dndnode_1752224500371_8",
       "targetHandle": null,
       "type": "smart-edge",
       "style": {
@@ -169,12 +112,12 @@
         "stroke": "#495057"
       },
       "animated": false,
-      "id": "reactflow__edge-dndnode_1752178597201_6-dndnode_1752178576685_5"
+      "id": "reactflow__edge-dndnode_1752224492698_7-dndnode_1752224500371_8"
     },
     {
-      "source": "dndnode_1752178576685_5",
+      "source": "dndnode_1752224500371_8",
       "sourceHandle": null,
-      "target": "dndnode_1752178936283_9",
+      "target": "dndnode_1752224667843_9",
       "targetHandle": null,
       "type": "smart-edge",
       "style": {
@@ -182,12 +125,12 @@
         "stroke": "#495057"
       },
       "animated": false,
-      "id": "reactflow__edge-dndnode_1752178576685_5-dndnode_1752178936283_9"
+      "id": "reactflow__edge-dndnode_1752224500371_8-dndnode_1752224667843_9"
     },
     {
-      "source": "dndnode_1752178936283_9",
+      "source": "dndnode_1752224667843_9",
       "sourceHandle": null,
-      "target": "dndnode_1752178729431_7",
+      "target": "dndnode_1752224681670_10",
       "targetHandle": null,
       "type": "smart-edge",
       "style": {
@@ -195,33 +138,7 @@
         "stroke": "#495057"
       },
       "animated": false,
-      "id": "reactflow__edge-dndnode_1752178936283_9-dndnode_1752178729431_7"
-    },
-    {
-      "source": "dndnode_1752178576685_5",
-      "sourceHandle": null,
-      "target": "dndnode_1752178959829_2",
-      "targetHandle": null,
-      "type": "smart-edge",
-      "style": {
-        "strokeWidth": 1.5,
-        "stroke": "#495057"
-      },
-      "animated": false,
-      "id": "reactflow__edge-dndnode_1752178576685_5-dndnode_1752178959829_2"
-    },
-    {
-      "source": "dndnode_1752178959829_2",
-      "sourceHandle": null,
-      "target": "dndnode_1752178795725_8",
-      "targetHandle": null,
-      "type": "smart-edge",
-      "style": {
-        "strokeWidth": 1.5,
-        "stroke": "#495057"
-      },
-      "animated": false,
-      "id": "reactflow__edge-dndnode_1752178959829_2-dndnode_1752178795725_8"
+      "id": "reactflow__edge-dndnode_1752224667843_9-dndnode_1752224681670_10"
     }
   ]
 }
