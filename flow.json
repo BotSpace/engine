@@ -1,43 +1,71 @@
 {
   "nodes": [
     {
-      "id": "node_0",
+      "id": "node_start_trigger",
       "type": "MessageTriggerNode",
-      "position": {
-        "x": 339.0052185058594,
-        "y": 143
-      },
-      "data": {
-        "type": "text",
-        "filter": "command",
-        "context": {
-          "value": "/help"
-        }
-      },
-      "width": 320,
-      "height": 343
+      "data": { "filter": "command", "context": { "value": "/start" } }
     },
     {
-      "id": "node_1",
+      "id": "node_show_reply_keyboard",
       "type": "SendTextMessageNode",
-      "position": {
-        "x": 136.0820469628087,
-        "y": 772.8398393952912
-      },
       "data": {
-        "messageText": "salom men ishlavomman"
-      },
-      "width": 320,
-      "height": 574
+        "messageText": "Assalomu alaykum! Quyidagi menyudan tanlang:",
+        "buttons": [
+          [
+            { "id": "btn_reply_1", "text": "Mening profilim", "type": "reply" },
+            { "id": "btn_reply_2", "text": "Sozlamalar", "type": "reply" }
+          ],
+          [
+            {
+              "id": "btn_reply_close",
+              "text": "/close keyboard",
+              "type": "reply"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": "node_profile_trigger",
+      "type": "MessageTriggerNode",
+      "data": { "filter": "equals", "context": { "value": "Mening profilim" } }
+    },
+    {
+      "id": "node_profile_action",
+      "type": "SendTextMessageNode",
+      "data": {
+        "messageText": "Bu sizning profilingiz haqidagi ma'lumotlar..."
+      }
+    },
+    {
+      "id": "node_close_trigger",
+      "type": "MessageTriggerNode",
+      "data": { "filter": "equals", "context": { "value": "/close keyboard" } }
+    },
+    {
+      "id": "node_close_action",
+      "type": "SendTextMessageNode",
+      "data": {
+        "messageText": "Klaviatura yopildi.",
+        "buttons": []
+      }
     }
   ],
   "edges": [
     {
-      "id": "reactflow__edge-node_0out-node_1",
-      "source": "node_0",
-      "target": "node_1",
-      "sourceHandle": "out",
-      "targetHandle": null
+      "source": "node_start_trigger",
+      "target": "node_show_reply_keyboard",
+      "id": "edge_1"
+    },
+    {
+      "source": "node_profile_trigger",
+      "target": "node_profile_action",
+      "id": "edge_2"
+    },
+    {
+      "source": "node_close_trigger",
+      "target": "node_close_action",
+      "id": "edge_3"
     }
   ]
 }
