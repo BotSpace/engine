@@ -1,22 +1,26 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
-
-from env import BOT_TOKEN, FLOW_FILE_PATH  # Token va flow fayl yo'li
+from fastapi import FastAPI
 
 from app.engine.engine import FlowEngine  # FlowEngine import
 from app.handlers import router as bot_router  # Router import
+from env import BOT_TOKEN, FLOW_FILE_PATH  # Token va flow fayl yo'li
 
 # --- Webhook Sozlamalari ---
-BASE_WEBHOOK_URL = "https://3fe4-185-139-137-7.ngrok-free.app"  # O'zingizning manzilingizni kiriting
+BASE_WEBHOOK_URL = (
+    "https://8cb464c23649.ngrok-free.app"  # O'zingizning manzilingizni kiriting
+)
 WEBHOOK_PATH = f"/bot/{BOT_TOKEN}"
 WEBHOOK_URL = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
 # ----------------------------
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,13 +51,14 @@ async def lifespan(app: FastAPI):
 
     finally:
         logging.info("Ilova to'xtamoqda...")
-        if hasattr(app.state, 'bot') and app.state.bot:
+        if hasattr(app.state, "bot") and app.state.bot:
             await app.state.bot.delete_webhook()
             await app.state.bot.session.close()
             logging.info("Webhook o'chirildi va sessiya yopildi.")
 
 
 app = FastAPI(lifespan=lifespan)
+
 
 @app.post(WEBHOOK_PATH)
 async def bot_webhook(update: dict):
@@ -66,4 +71,4 @@ async def bot_webhook(update: dict):
     except Exception as e:
         logging.error(f"Update'ni qayta ishlashda xatolik: {e}", exc_info=True)
 
-    return {'status': 'ok'}
+    return {"status": "ok"}
