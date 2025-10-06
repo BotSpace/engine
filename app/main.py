@@ -7,12 +7,11 @@ from fastapi import FastAPI
 
 from app.engine.engine import FlowEngine  # FlowEngine import
 from app.handlers import router as bot_router  # Router import
-from env import BOT_TOKEN, FLOW_FILE_PATH  # Token va flow fayl yo'li
+from env import BOT_TOKEN, FLOW_FILE_PATH, WEBHOOK_PATH  # Token va flow fayl yo'li
 
 # --- Webhook Sozlamalari ---
-BASE_WEBHOOK_URL = (
-    "https://8cb464c23649.ngrok-free.app"  # O'zingizning manzilingizni kiriting
-)
+BASE_WEBHOOK_URL = WEBHOOK_PATH
+
 WEBHOOK_PATH = f"/bot/{BOT_TOKEN}"
 WEBHOOK_URL = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
 # ----------------------------
