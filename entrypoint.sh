@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
 
-uvicorn app.main:app
+python3 -m app.main
 
 exit $?
