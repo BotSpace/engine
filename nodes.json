@@ -1,0 +1,38 @@
+{
+  "edges": [
+    {
+      "id": "reactflow__edge-node_1759951000207_2-node_1759950974740_1",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1759951000207_2",
+      "target": "node_1759950974740_1",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node_1759950974740_1",
+      "data": { "pythonCode": "print(\"Salom olam\")" },
+      "type": "CustomCodeNode",
+      "width": 320,
+      "height": 185,
+      "dragging": false,
+      "position": { "x": -2459.7321622808213, "y": 2141.2338946929704 },
+      "selected": false,
+      "positionAbsolute": { "x": -2459.7321622808213, "y": 2141.2338946929704 }
+    },
+    {
+      "id": "node_1759951000207_2",
+      "data": { "type": "any", "context": {} },
+      "type": "MessageTriggerNode",
+      "width": 320,
+      "height": 186,
+      "dragging": false,
+      "position": { "x": -2448.45402839664, "y": 1788.53588958766 },
+      "selected": false,
+      "positionAbsolute": { "x": -2448.45402839664, "y": 1788.53588958766 }
+    }
+  ]
+}
