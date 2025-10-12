@@ -1,195 +1,167 @@
 {
-  "nodes": [
+  "edges": [
     {
-      "id": "trigger_start_command",
-      "type": "CommandTriggerNode",
-      "position": { "x": 100, "y": 100 },
-      "data": { "command": "/start" }
+      "id": "reactflow__edge-node_1760253076228_4-node_1760253095741_5",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253076228_4",
+      "target": "node_1760253095741_5",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     },
     {
-      "id": "action_welcome_message",
-      "type": "SendTextMessageNode",
-      "position": { "x": 100, "y": 300 },
-      "data": {
-        "messageText": "Assalomu alaykum! Bizning restoranimizga xush kelibsiz. Nima bilan yordam berishim mumkin?",
-        "recipients": { "sendToSender": true },
-        "keyboard": {
-          "inline": [
-            [
-              { "text": "🍽 Menu", "type": "callback", "value": "show_menu" },
-              { "text": "💳 To'lov", "type": "callback", "value": "payment_options" }
-            ],
-            [
-              { "text": "❓ Yordam", "type": "callback", "value": "support" },
-              { "text": "ℹ️ Ma'lumot", "type": "callback", "value": "about_us" }
-            ]
-          ],
-          "active": "inline"
-        }
-      }
+      "id": "reactflow__edge-node_1760253095741_5-node_1760253241263_8",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253095741_5",
+      "target": "node_1760253241263_8",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     },
     {
-      "id": "trigger_show_menu_callback",
-      "type": "CallbackQueryTriggerNode",
-      "position": { "x": -200, "y": 600 },
-      "data": { "filter": "equals", "context": { "value": "show_menu" } }
+      "id": "reactflow__edge-node_1760253241263_8-node_1760253131823_6",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253241263_8",
+      "target": "node_1760253131823_6",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     },
     {
-      "id": "action_send_menu",
-      "type": "SendTextMessageNode",
-      "position": { "x": -200, "y": 800 },
-      "data": {
-        "messageText": "Bizning menyu:\n\n1. Taom 1 - 50 000 so'm\n2. Taom 2 - 75 000 so'm\n3. Ichimlik 1 - 15 000 so'm\n\nQaysi biriga buyurtma bermoqchisiz?",
-        "recipients": { "sendToSender": true },
-        "keyboard": {
-          "inline": [
-            [{ "text": "🛒 Buyurtma berish", "type": "callback", "value": "place_order" }],
-            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
-          ],
-          "active": "inline"
-        }
-      }
+      "id": "reactflow__edge-node_1760253131823_6-node_1760253280089_9",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253131823_6",
+      "target": "node_1760253280089_9",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     },
     {
-      "id": "trigger_payment_options_callback",
-      "type": "CallbackQueryTriggerNode",
-      "position": { "x": 200, "y": 600 },
-      "data": { "filter": "equals", "context": { "value": "payment_options" } }
-    },
-    {
-      "id": "action_send_payment_options",
-      "type": "SendTextMessageNode",
-      "position": { "x": 200, "y": 800 },
-      "data": {
-        "messageText": "To'lov usullari:\n\n1. Naqd pul\n2. Karta orqali (terminal)\n3. Click/Payme (tez orada)\n\nQaysi birini afzal ko'rasiz?",
-        "recipients": { "sendToSender": true },
-        "keyboard": {
-          "inline": [
-            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
-          ],
-          "active": "inline"
-        }
-      }
-    },
-    {
-      "id": "trigger_support_callback",
-      "type": "CallbackQueryTriggerNode",
-      "position": { "x": 600, "y": 600 },
-      "data": { "filter": "equals", "context": { "value": "support" } }
-    },
-    {
-      "id": "action_send_support_info",
-      "type": "SendTextMessageNode",
-      "position": { "x": 600, "y": 800 },
-      "data": {
-        "messageText": "Yordam bo'limiga xush kelibsiz. Savolingizni yozing, tez orada operatorlarimiz javob berishadi.",
-        "recipients": { "sendToSender": true },
-        "keyboard": {
-          "inline": [
-            [{ "text": "📞 Operator bilan bog'lanish", "type": "callback", "value": "contact_operator" }],
-            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
-          ],
-          "active": "inline"
-        }
-      }
-    },
-    {
-      "id": "trigger_about_us_callback",
-      "type": "CallbackQueryTriggerNode",
-      "position": { "x": 1000, "y": 600 },
-      "data": { "filter": "equals", "context": { "value": "about_us" } }
-    },
-    {
-      "id": "action_send_about_us",
-      "type": "SendTextMessageNode",
-      "position": { "x": 1000, "y": 800 },
-      "data": {
-        "messageText": "Bizning restoranimiz 2005 yildan buyon sizning xizmatingizda! Eng mazali taomlar va yuqori darajadagi xizmatni taklif etamiz. Manzilimiz: Toshkent sh. Buyuk Ipak Yo'li k. 15. Ish vaqti: 09:00 - 23:00.",
-        "recipients": { "sendToSender": true },
-        "keyboard": {
-          "inline": [
-            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
-          ],
-          "active": "inline"
-        }
-      }
-    },
-    {
-      "id": "trigger_back_to_main",
-      "type": "CallbackQueryTriggerNode",
-      "position": { "x": 400, "y": 1000 },
-      "data": { "filter": "equals", "context": { "value": "back_to_main" } }
-    },
-    {
-      "id": "trigger_place_order_callback",
-      "type": "CallbackQueryTriggerNode",
-      "position": { "x": -200, "y": 1000 },
-      "data": { "filter": "equals", "context": { "value": "place_order" } }
-    },
-    {
-      "id": "action_prompt_order",
-      "type": "SendTextMessageNode",
-      "position": { "x": -200, "y": 1200 },
-      "data": {
-        "messageText": "Iltimos, buyurtma bermoqchi bo'lgan taom yoki ichimlik nomini va miqdorini yozing (masalan: Taom 1 - 2ta, Ichimlik 1 - 1ta):",
-        "recipients": { "sendToSender": true }
-      }
-    },
-    {
-      "id": "trigger_receive_order",
-      "type": "MessageTriggerNode",
-      "position": { "x": -200, "y": 1400 },
-      "data": { "type": "text" }
-    },
-    {
-      "id": "action_process_order",
-      "type": "CustomCodeNode",
-      "position": { "x": -200, "y": 1600 },
-      "data": {
-        "pythonCode": "order_text = message.text\\n# Buyurtmani qayta ishlash logikasi bu yerda bo\\'ladi\\n# Masalan, buyurtmani bazaga saqlash yoki operatorga yuborish\\nawait message.answer(f\\\"Buyurtmangiz qabul qilindi: '{order_text}'. Tez orada siz bilan bog'lanamiz.\\\")"
-      }
-    },
-    {
-      "id": "trigger_contact_operator_callback",
-      "type": "CallbackQueryTriggerNode",
-      "position": { "x": 600, "y": 1000 },
-      "data": { "filter": "equals", "context": { "value": "contact_operator" } }
-    },
-    {
-      "id": "action_contact_operator",
-      "type": "SendTextMessageNode",
-      "position": { "x": 600, "y": 1200 },
-      "data": {
-        "messageText": "Operatorimiz tez orada siz bilan bog'lanadi. Iltimos kuting.",
-        "recipients": { "sendToSender": true }
-      }
+      "id": "reactflow__edge-node_1760253280089_9-node_1760253161920_7",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253280089_9",
+      "target": "node_1760253161920_7",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     }
   ],
-  "edges": [
-    { "source": "trigger_start_command", "target": "action_welcome_message", "id": "edge_1", "type": "smart-edge" },
-    { "source": "action_welcome_message", "target": "trigger_show_menu_callback", "id": "edge_2", "type": "smart-edge" },
-    { "source": "action_welcome_message", "target": "trigger_payment_options_callback", "id": "edge_3", "type": "smart-edge" },
-    { "source": "action_welcome_message", "target": "trigger_support_callback", "id": "edge_4", "type": "smart-edge" },
-    { "source": "action_welcome_message", "target": "trigger_about_us_callback", "id": "edge_5", "type": "smart-edge" },
-
-    { "source": "trigger_show_menu_callback", "target": "action_send_menu", "id": "edge_6", "type": "smart-edge" },
-    { "source": "trigger_payment_options_callback", "target": "action_send_payment_options", "id": "edge_7", "type": "smart-edge" },
-    { "source": "trigger_support_callback", "target": "action_send_support_info", "id": "edge_8", "type": "smart-edge" },
-    { "source": "trigger_about_us_callback", "target": "action_send_about_us", "id": "edge_9", "type": "smart-edge" },
-
-    { "source": "action_send_menu", "target": "trigger_back_to_main", "id": "edge_10", "type": "smart-edge" },
-    { "source": "action_send_payment_options", "target": "trigger_back_to_main", "id": "edge_11", "type": "smart-edge" },
-    { "source": "action_send_support_info", "target": "trigger_back_to_main", "id": "edge_12", "type": "smart-edge" },
-    { "source": "action_send_about_us", "target": "trigger_back_to_main", "id": "edge_13", "type": "smart-edge" },
-
-    { "source": "action_send_menu", "target": "trigger_place_order_callback", "id": "edge_14", "type": "smart-edge" },
-    { "source": "trigger_place_order_callback", "target": "action_prompt_order", "id": "edge_15", "type": "smart-edge" },
-    { "source": "action_prompt_order", "target": "trigger_receive_order", "id": "edge_16", "type": "smart-edge" },
-    { "source": "trigger_receive_order", "target": "action_process_order", "id": "edge_17", "type": "smart-edge" },
-
-    { "source": "trigger_back_to_main", "target": "action_welcome_message", "id": "edge_18", "type": "smart-edge" },
-
-    { "source": "action_send_support_info", "target": "trigger_contact_operator_callback", "id": "edge_19", "type": "smart-edge" },
-    { "source": "trigger_contact_operator_callback", "target": "action_contact_operator", "id": "edge_20", "type": "smart-edge" }
+  "nodes": [
+    {
+      "id": "node_1760253076228_4",
+      "data": { "command": "/start" },
+      "type": "CommandTriggerNode",
+      "width": 320,
+      "height": 196,
+      "dragging": false,
+      "position": { "x": -967.0891191708062, "y": 1539.733718299783 },
+      "selected": false,
+      "positionAbsolute": { "x": -967.0891191708062, "y": 1539.733718299783 }
+    },
+    {
+      "id": "node_1760253095741_5",
+      "data": {
+        "keyboard": {
+          "reply": [],
+          "active": "inline",
+          "inline": [
+            [
+              {
+                "id": "btn-1760253117803",
+                "text": "inline_button",
+                "type": "callback",
+                "value": "inline_button"
+              }
+            ]
+          ]
+        },
+        "parseMode": "None",
+        "recipients": { "sendToSender": true, "additionalIds": [] },
+        "messageText": "Yangi xabar"
+      },
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": { "x": -1000.4092044965785, "y": 1840.751498879408 },
+      "selected": false,
+      "positionAbsolute": { "x": -1000.4092044965785, "y": 1840.751498879408 }
+    },
+    {
+      "id": "node_1760253131823_6",
+      "data": {
+        "keyboard": {
+          "reply": [
+            [{ "id": "btn-1760253156983", "text": "reply", "type": "reply" }]
+          ],
+          "active": "reply",
+          "inline": []
+        },
+        "parseMode": "None",
+        "recipients": { "sendToSender": true, "additionalIds": [] },
+        "messageText": "inline was clicked"
+      },
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": { "x": -992.4579436296674, "y": 2887.880940445403 },
+      "selected": false,
+      "positionAbsolute": { "x": -992.4579436296674, "y": 2887.880940445403 }
+    },
+    {
+      "id": "node_1760253161920_7",
+      "data": {
+        "keyboard": { "reply": [], "active": "inline", "inline": [] },
+        "parseMode": "None",
+        "recipients": { "sendToSender": true, "additionalIds": [] },
+        "messageText": "reply was clicked"
+      },
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": { "x": -1030.4137974107016, "y": 3818.241422432829 },
+      "selected": false,
+      "positionAbsolute": { "x": -1030.4137974107016, "y": 3818.241422432829 }
+    },
+    {
+      "id": "node_1760253241263_8",
+      "data": {
+        "value": "",
+        "filter": "equals",
+        "global": true,
+        "context": { "value": "inline_button", "global": true }
+      },
+      "type": "CallbackQueryTriggerNode",
+      "width": 320,
+      "height": 320,
+      "dragging": false,
+      "position": { "x": -984.4494448648755, "y": 2422.9288480346568 },
+      "selected": false,
+      "positionAbsolute": { "x": -984.4494448648755, "y": 2422.9288480346568 }
+    },
+    {
+      "id": "node_1760253280089_9",
+      "data": {
+        "selectedButton": {
+          "id": "btn-1760253156983",
+          "text": "reply",
+          "type": "reply"
+        }
+      },
+      "type": "ReplyButtonTriggerNode",
+      "width": 320,
+      "height": 148,
+      "dragging": false,
+      "position": { "x": -981.3086619353467, "y": 3558.694818373478 },
+      "selected": true,
+      "positionAbsolute": { "x": -981.3086619353467, "y": 3558.694818373478 }
+    }
   ]
 }
