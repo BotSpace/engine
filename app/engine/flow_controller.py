@@ -7,7 +7,6 @@ from typing import Any, Dict
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
-from geopy.distance import geodesic  # pip install geopy
 
 from .executors import NodeExecutor
 from .fsm import FlowState
@@ -131,22 +130,6 @@ class FlowController:
                 f"CHAT_ID={chat_id}: Ssenariy shoxi tugadi. Holat tozalanmoqda."
             )
             await state_manager.clear_state()
-
-    def _check_radius(self, event_location, radius_context: Dict[str, Any]) -> bool:
-        try:
-            center_lat, center_lng, radius_km = (
-                float(radius_context.get("lat")),
-                float(radius_context.get("lng")),
-                float(radius_context.get("km")),
-            )
-            user_location, center_point = (
-                event_location.latitude,
-                event_location.longitude,
-            ), (center_lat, center_lng)
-            distance = geodesic(user_location, center_point).kilometers
-            return distance <= radius_km
-        except (ValueError, TypeError, AttributeError):
-            return False
 
     def _check_trigger(
         self, trigger_node: dict, event: Message | CallbackQuery
