@@ -1,6 +1,6 @@
 # app/handlers/common.py
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, message
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
 
@@ -16,9 +16,6 @@ router = Router()
 async def waiting_handler(
     update: Message | CallbackQuery, controller: FlowController, state: FSMContext
 ):
-    if isinstance(update, Message):
-        if update.text == "/start":
-            await get_or_create_user(update.chat.id)  # type:ignore
     await controller.handle_update(update, state)
 
 
@@ -27,5 +24,7 @@ async def waiting_handler(
 async def initial_handler(
     update: Message | CallbackQuery, controller: FlowController, state: FSMContext
 ):
+    if isinstance(update, Message):
+        if update.text == "/start":
+            await get_or_create_user(update.chat.id)  # type:ignore
     await controller.handle_update(update, state)
-
