@@ -1,60 +1,50 @@
-# app/main.py
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from typing import Optional
 
-from fastapi import FastAPI, Request
-from aiogram import Bot, Dispatcher, types
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.memory import MemoryStorage
 
-from env import BASE_WEBHOOK_URL, BOT_TOKEN, FLOW_FILE_PATH
+from app.config import BOT_TOKEN, FLOW_FILE_PATH
 from app.engine.flow_controller import FlowController
-from app.handlers.common import router as common_router
-
-# --- Webhook Sozlamalari ---
-WEBHOOK_PATH = f"/bot/{BOT_TOKEN}"
-WEBHOOK_URL = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
-
-print(f"🔍 ~  ~ app/main.py:16 ~ {WEBHOOK_URL}:");
-
-# ----------------------------
+from app.handlers.common import router as bot_router
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    default_properties = DefaultBotProperties(parse_mode="HTML")
-    bot = Bot(token=BOT_TOKEN, default=default_properties)
-    controller = FlowController(bot=bot, schema_path=FLOW_FILE_PATH)
-    dp = Dispatcher(storage=MemoryStorage(), controller=controller)
-    dp.include_router(common_router)
-    app.state.bot = bot
-    app.state.dispatcher = dp
-    await bot.set_webhook(url=WEBHOOK_URL)
-    logging.info(f"Webhook o'rnatildi: {WEBHOOK_URL}")
-    yield
-    logging.info("Webhook o'chirilmoqda...")
-    await bot.delete_webhook()
-    await bot.session.close()
+
+async def main() -> None:
+    logging.info("Ilova ishga tushmoqda (polling rejim)...")
+
+    bot: Optional[Bot] = None
+    try:
+        default_properties = DefaultBotProperties(parse_mode="HTML")
+        bot = Bot(token=str(BOT_TOKEN), default=default_properties)
+        controller = FlowController(bot=bot, schema_path=FLOW_FILE_PATH)
+
+        dp = Dispatcher(storage=MemoryStorage(), controller=controller)
+        dp.include_router(bot_router)
+
+        await dp.start_polling(bot)
+
+    except asyncio.CancelledError:
+        logging.info("Polling bekor qilindi.")
+        raise
+    except Exception as exc:
+        logging.critical(f"Kritik xato: {exc}", exc_info=True)
+    finally:
+        if bot is not None:
+            try:
+                await bot.session.close()
+                logging.info("Bot sessiyasi yopildi.")
+            except Exception as e:
+                logging.warning(f"Bot sessiyasini yopishda xatolik: {e}", exc_info=True)
 
 
-# ---- MUHIM QATOR ----
-# Uvicorn aynan shu "app" nomli o'zgaruvchini qidiradi
-app = FastAPI(lifespan=lifespan)
-# --------------------
-
-
-@app.get("/")
-async def welcome():
-    return {"message": "Welcome to the Bot API!"}
-
-
-@app.post(WEBHOOK_PATH)
-async def bot_webhook(request: Request):
-    dispatcher: Dispatcher = request.app.state.dispatcher
-    bot: Bot = request.app.state.bot
-    update = types.Update(**(await request.json()))
-    await dispatcher.feed_update(bot=bot, update=update)
-    return {"status": "ok"}
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Ilova to'xtatildi (user interrupt).")
