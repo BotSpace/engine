@@ -6,7 +6,7 @@ client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
 db = client["bot"]
 
 
-async def create_user(chat_id):
+async def get_or_create_user(chat_id):
     collection = db["users"]
     user = await collection.find_one({"chat_id": chat_id})
     if user:
