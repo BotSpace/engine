@@ -11,6 +11,7 @@ async def get_or_create_user(chat_id):
     user = await collection.find_one({"chat_id": chat_id})
     if user:
         return user
+    print("foydalanuvchi yaratildi")
     return await collection.insert_one(
         {
             "chat_id": chat_id,
