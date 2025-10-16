@@ -1,12 +1,12 @@
 # app/handlers/common.py
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
 
 from app.engine.flow_controller import FlowController
 from app.engine.fsm import FlowState
-from app.repository import get_or_create_user
+from app.repository import create_user_not_exists
 
 router = Router()
 
@@ -26,5 +26,13 @@ async def initial_handler(
 ):
     if isinstance(update, Message):
         if update.text == "/start":
-            await get_or_create_user(update.chat.id)  # type:ignore
+            first_name = (
+                getattr(update.from_user, "first_name", "") if update.from_user else ""
+            )
+            last_name = (
+                getattr(update.from_user, "last_name", "") if update.from_user else ""
+            )
+            await create_user_not_exists(
+                update.chat.id, first_name, last_name
+            )  # type:ignore
     await controller.handle_update(update, state)
