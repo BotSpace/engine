@@ -17,7 +17,11 @@
           "inline": [
             [
               { "text": "🍽 Menu", "type": "callback", "value": "show_menu" },
-              { "text": "💳 To'lov", "type": "callback", "value": "payment_options" }
+              {
+                "text": "💳 To'lov",
+                "type": "callback",
+                "value": "payment_options"
+              }
             ],
             [
               { "text": "❓ Yordam", "type": "callback", "value": "support" },
@@ -43,8 +47,20 @@
         "recipients": { "sendToSender": true },
         "keyboard": {
           "inline": [
-            [{ "text": "🛒 Buyurtma berish", "type": "callback", "value": "place_order" }],
-            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
+            [
+              {
+                "text": "🛒 Buyurtma berish",
+                "type": "callback",
+                "value": "place_order"
+              }
+            ],
+            [
+              {
+                "text": "⬅️ Orqaga",
+                "type": "callback",
+                "value": "back_to_main"
+              }
+            ]
           ],
           "active": "inline"
         }
@@ -65,7 +81,13 @@
         "recipients": { "sendToSender": true },
         "keyboard": {
           "inline": [
-            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
+            [
+              {
+                "text": "⬅️ Orqaga",
+                "type": "callback",
+                "value": "back_to_main"
+              }
+            ]
           ],
           "active": "inline"
         }
@@ -86,8 +108,20 @@
         "recipients": { "sendToSender": true },
         "keyboard": {
           "inline": [
-            [{ "text": "📞 Operator bilan bog'lanish", "type": "callback", "value": "contact_operator" }],
-            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
+            [
+              {
+                "text": "📞 Operator bilan bog'lanish",
+                "type": "callback",
+                "value": "contact_operator"
+              }
+            ],
+            [
+              {
+                "text": "⬅️ Orqaga",
+                "type": "callback",
+                "value": "back_to_main"
+              }
+            ]
           ],
           "active": "inline"
         }
@@ -108,7 +142,13 @@
         "recipients": { "sendToSender": true },
         "keyboard": {
           "inline": [
-            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
+            [
+              {
+                "text": "⬅️ Orqaga",
+                "type": "callback",
+                "value": "back_to_main"
+              }
+            ]
           ],
           "active": "inline"
         }
@@ -166,30 +206,130 @@
     }
   ],
   "edges": [
-    { "source": "trigger_start_command", "target": "action_welcome_message", "id": "edge_1", "type": "smart-edge" },
-    { "source": "action_welcome_message", "target": "trigger_show_menu_callback", "id": "edge_2", "type": "smart-edge" },
-    { "source": "action_welcome_message", "target": "trigger_payment_options_callback", "id": "edge_3", "type": "smart-edge" },
-    { "source": "action_welcome_message", "target": "trigger_support_callback", "id": "edge_4", "type": "smart-edge" },
-    { "source": "action_welcome_message", "target": "trigger_about_us_callback", "id": "edge_5", "type": "smart-edge" },
+    {
+      "source": "trigger_start_command",
+      "target": "action_welcome_message",
+      "id": "edge_1",
+      "type": "smart-edge"
+    },
+    {
+      "source": "action_welcome_message",
+      "target": "trigger_show_menu_callback",
+      "id": "edge_2",
+      "type": "smart-edge"
+    },
+    {
+      "source": "action_welcome_message",
+      "target": "trigger_payment_options_callback",
+      "id": "edge_3",
+      "type": "smart-edge"
+    },
+    {
+      "source": "action_welcome_message",
+      "target": "trigger_support_callback",
+      "id": "edge_4",
+      "type": "smart-edge"
+    },
+    {
+      "source": "action_welcome_message",
+      "target": "trigger_about_us_callback",
+      "id": "edge_5",
+      "type": "smart-edge"
+    },
 
-    { "source": "trigger_show_menu_callback", "target": "action_send_menu", "id": "edge_6", "type": "smart-edge" },
-    { "source": "trigger_payment_options_callback", "target": "action_send_payment_options", "id": "edge_7", "type": "smart-edge" },
-    { "source": "trigger_support_callback", "target": "action_send_support_info", "id": "edge_8", "type": "smart-edge" },
-    { "source": "trigger_about_us_callback", "target": "action_send_about_us", "id": "edge_9", "type": "smart-edge" },
+    {
+      "source": "trigger_show_menu_callback",
+      "target": "action_send_menu",
+      "id": "edge_6",
+      "type": "smart-edge"
+    },
+    {
+      "source": "trigger_payment_options_callback",
+      "target": "action_send_payment_options",
+      "id": "edge_7",
+      "type": "smart-edge"
+    },
+    {
+      "source": "trigger_support_callback",
+      "target": "action_send_support_info",
+      "id": "edge_8",
+      "type": "smart-edge"
+    },
+    {
+      "source": "trigger_about_us_callback",
+      "target": "action_send_about_us",
+      "id": "edge_9",
+      "type": "smart-edge"
+    },
 
-    { "source": "action_send_menu", "target": "trigger_back_to_main", "id": "edge_10", "type": "smart-edge" },
-    { "source": "action_send_payment_options", "target": "trigger_back_to_main", "id": "edge_11", "type": "smart-edge" },
-    { "source": "action_send_support_info", "target": "trigger_back_to_main", "id": "edge_12", "type": "smart-edge" },
-    { "source": "action_send_about_us", "target": "trigger_back_to_main", "id": "edge_13", "type": "smart-edge" },
+    {
+      "source": "action_send_menu",
+      "target": "trigger_back_to_main",
+      "id": "edge_10",
+      "type": "smart-edge"
+    },
+    {
+      "source": "action_send_payment_options",
+      "target": "trigger_back_to_main",
+      "id": "edge_11",
+      "type": "smart-edge"
+    },
+    {
+      "source": "action_send_support_info",
+      "target": "trigger_back_to_main",
+      "id": "edge_12",
+      "type": "smart-edge"
+    },
+    {
+      "source": "action_send_about_us",
+      "target": "trigger_back_to_main",
+      "id": "edge_13",
+      "type": "smart-edge"
+    },
 
-    { "source": "action_send_menu", "target": "trigger_place_order_callback", "id": "edge_14", "type": "smart-edge" },
-    { "source": "trigger_place_order_callback", "target": "action_prompt_order", "id": "edge_15", "type": "smart-edge" },
-    { "source": "action_prompt_order", "target": "trigger_receive_order", "id": "edge_16", "type": "smart-edge" },
-    { "source": "trigger_receive_order", "target": "action_process_order", "id": "edge_17", "type": "smart-edge" },
+    {
+      "source": "action_send_menu",
+      "target": "trigger_place_order_callback",
+      "id": "edge_14",
+      "type": "smart-edge"
+    },
+    {
+      "source": "trigger_place_order_callback",
+      "target": "action_prompt_order",
+      "id": "edge_15",
+      "type": "smart-edge"
+    },
+    {
+      "source": "action_prompt_order",
+      "target": "trigger_receive_order",
+      "id": "edge_16",
+      "type": "smart-edge"
+    },
+    {
+      "source": "trigger_receive_order",
+      "target": "action_process_order",
+      "id": "edge_17",
+      "type": "smart-edge"
+    },
 
-    { "source": "trigger_back_to_main", "target": "action_welcome_message", "id": "edge_18", "type": "smart-edge" },
+    {
+      "source": "trigger_back_to_main",
+      "target": "action_welcome_message",
+      "id": "edge_18",
+      "type": "smart-edge"
+    },
 
-    { "source": "action_send_support_info", "target": "trigger_contact_operator_callback", "id": "edge_19", "type": "smart-edge" },
-    { "source": "trigger_contact_operator_callback", "target": "action_contact_operator", "id": "edge_20", "type": "smart-edge" }
+    {
+      "source": "action_send_support_info",
+      "target": "trigger_contact_operator_callback",
+      "id": "edge_19",
+      "type": "smart-edge"
+    },
+    {
+      "source": "trigger_contact_operator_callback",
+      "target": "action_contact_operator",
+      "id": "edge_20",
+      "type": "smart-edge"
+    }
   ]
 }

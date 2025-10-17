@@ -1,70 +1,22 @@
 {
-  "edges": [
-    {
-      "id": "reactflow__edge-node_1760253076228_4-node_1760253095741_5",
-      "type": "smart-edge",
-      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
-      "source": "node_1760253076228_4",
-      "target": "node_1760253095741_5",
-      "animated": false,
-      "sourceHandle": null,
-      "targetHandle": null
-    },
-    {
-      "id": "reactflow__edge-node_1760253095741_5-node_1760253241263_8",
-      "type": "smart-edge",
-      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
-      "source": "node_1760253095741_5",
-      "target": "node_1760253241263_8",
-      "animated": false,
-      "sourceHandle": null,
-      "targetHandle": null
-    },
-    {
-      "id": "reactflow__edge-node_1760253241263_8-node_1760253131823_6",
-      "type": "smart-edge",
-      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
-      "source": "node_1760253241263_8",
-      "target": "node_1760253131823_6",
-      "animated": false,
-      "sourceHandle": null,
-      "targetHandle": null
-    },
-    {
-      "id": "reactflow__edge-node_1760253131823_6-node_1760253280089_9",
-      "type": "smart-edge",
-      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
-      "source": "node_1760253131823_6",
-      "target": "node_1760253280089_9",
-      "animated": false,
-      "sourceHandle": null,
-      "targetHandle": null
-    },
-    {
-      "id": "reactflow__edge-node_1760253280089_9-node_1760253161920_7",
-      "type": "smart-edge",
-      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
-      "source": "node_1760253280089_9",
-      "target": "node_1760253161920_7",
-      "animated": false,
-      "sourceHandle": null,
-      "targetHandle": null
-    }
-  ],
   "nodes": [
     {
-      "id": "node_1760253076228_4",
-      "data": { "command": "/start" },
+      "id": "node_1760645488961_4",
+      "data": {
+        "global": true,
+        "command": "/start"
+      },
       "type": "CommandTriggerNode",
       "width": 320,
-      "height": 196,
-      "dragging": false,
-      "position": { "x": -967.0891191708062, "y": 1539.733718299783 },
-      "selected": false,
-      "positionAbsolute": { "x": -967.0891191708062, "y": 1539.733718299783 }
+      "height": 236,
+      "position": {
+        "x": -414.165989251731,
+        "y": 924.9832856595618
+      },
+      "selected": false
     },
     {
-      "id": "node_1760253095741_5",
+      "id": "node_1760645494326_6",
       "data": {
         "keyboard": {
           "reply": [],
@@ -72,96 +24,293 @@
           "inline": [
             [
               {
-                "id": "btn-1760253117803",
-                "text": "inline_button",
+                "id": "btn-1760645520994",
+                "text": "global button",
                 "type": "callback",
-                "value": "inline_button"
+                "value": "global_button"
+              },
+              {
+                "id": "btn-1760645530042",
+                "text": "Next messsage",
+                "type": "callback",
+                "value": "Next_messsage"
               }
             ]
           ]
         },
         "parseMode": "None",
-        "recipients": { "sendToSender": true, "additionalIds": [] },
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Asosiy menu"
+      },
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": {
+        "x": -472.04083846755435,
+        "y": 1247.0795984069214
+      },
+      "selected": false,
+      "positionAbsolute": {
+        "x": -472.04083846755435,
+        "y": 1247.0795984069214
+      }
+    },
+    {
+      "id": "node_1760645535941_7",
+      "data": {
+        "filter": "equals",
+        "global": true,
+        "context": {
+          "value": "global_button"
+        }
+      },
+      "type": "CallbackQueryTriggerNode",
+      "width": 320,
+      "height": 320,
+      "dragging": false,
+      "position": {
+        "x": -1044.5279788996736,
+        "y": 1861.166673889058
+      },
+      "selected": false,
+      "positionAbsolute": {
+        "x": -1044.5279788996736,
+        "y": 1861.166673889058
+      }
+    },
+    {
+      "id": "node_1760645544226_8",
+      "data": {
+        "keyboard": {
+          "reply": [],
+          "active": "inline",
+          "inline": []
+        },
+        "parseMode": "None",
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Global"
+      },
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": {
+        "x": -1121.5928612984228,
+        "y": 2330.257262403185
+      },
+      "selected": false,
+      "positionAbsolute": {
+        "x": -1121.5928612984228,
+        "y": 2330.257262403185
+      }
+    },
+    {
+      "id": "dndnode_1760645562192_0",
+      "data": {
+        "filter": "equals",
+        "global": false,
+        "context": {
+          "value": "Next_messsage"
+        }
+      },
+      "type": "CallbackQueryTriggerNode",
+      "width": 320,
+      "height": 320,
+      "dragging": false,
+      "position": {
+        "x": -257.1259196081028,
+        "y": 1906.4004092100631
+      },
+      "selected": false,
+      "positionAbsolute": {
+        "x": -257.1259196081028,
+        "y": 1906.4004092100631
+      }
+    },
+    {
+      "id": "node_1760645583238_9",
+      "data": {
+        "keyboard": {
+          "reply": [
+            [
+              {
+                "id": "btn-1760645594365",
+                "text": "salom",
+                "type": "reply"
+              }
+            ]
+          ],
+          "active": "reply",
+          "inline": []
+        },
+        "parseMode": "None",
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
         "messageText": "Yangi xabar"
       },
       "type": "SendTextMessageNode",
       "width": 400,
       "height": 499,
       "dragging": false,
-      "position": { "x": -1000.4092044965785, "y": 1840.751498879408 },
-      "selected": false,
-      "positionAbsolute": { "x": -1000.4092044965785, "y": 1840.751498879408 }
+      "position": {
+        "x": -175.03506661813051,
+        "y": 2460.932497774978
+      },
+      "selected": false
     },
     {
-      "id": "node_1760253131823_6",
+      "id": "node_1760645599195_10",
       "data": {
-        "keyboard": {
-          "reply": [
-            [{ "id": "btn-1760253156983", "text": "reply", "type": "reply" }]
-          ],
-          "active": "reply",
-          "inline": []
+        "global": false,
+        "context": {
+          "global": false
         },
-        "parseMode": "None",
-        "recipients": { "sendToSender": true, "additionalIds": [] },
-        "messageText": "inline was clicked"
-      },
-      "type": "SendTextMessageNode",
-      "width": 400,
-      "height": 499,
-      "dragging": false,
-      "position": { "x": -992.4579436296674, "y": 2887.880940445403 },
-      "selected": false,
-      "positionAbsolute": { "x": -992.4579436296674, "y": 2887.880940445403 }
-    },
-    {
-      "id": "node_1760253161920_7",
-      "data": {
-        "keyboard": { "reply": [], "active": "inline", "inline": [] },
-        "parseMode": "None",
-        "recipients": { "sendToSender": true, "additionalIds": [] },
-        "messageText": "reply was clicked"
-      },
-      "type": "SendTextMessageNode",
-      "width": 400,
-      "height": 499,
-      "dragging": false,
-      "position": { "x": -1030.4137974107016, "y": 3818.241422432829 },
-      "selected": false,
-      "positionAbsolute": { "x": -1030.4137974107016, "y": 3818.241422432829 }
-    },
-    {
-      "id": "node_1760253241263_8",
-      "data": {
-        "value": "",
-        "filter": "equals",
-        "global": true,
-        "context": { "value": "inline_button", "global": true }
-      },
-      "type": "CallbackQueryTriggerNode",
-      "width": 320,
-      "height": 320,
-      "dragging": false,
-      "position": { "x": -984.4494448648755, "y": 2422.9288480346568 },
-      "selected": false,
-      "positionAbsolute": { "x": -984.4494448648755, "y": 2422.9288480346568 }
-    },
-    {
-      "id": "node_1760253280089_9",
-      "data": {
         "selectedButton": {
-          "id": "btn-1760253156983",
-          "text": "reply",
+          "id": "btn-1760645594365",
+          "text": "salom",
           "type": "reply"
         }
       },
       "type": "ReplyButtonTriggerNode",
       "width": 320,
-      "height": 148,
+      "height": 184,
       "dragging": false,
-      "position": { "x": -981.3086619353467, "y": 3558.694818373478 },
+      "position": {
+        "x": -131.47665482753297,
+        "y": 3159.5424099549464
+      },
       "selected": true,
-      "positionAbsolute": { "x": -981.3086619353467, "y": 3558.694818373478 }
+      "positionAbsolute": {
+        "x": -131.47665482753297,
+        "y": 3159.5424099549464
+      }
+    },
+    {
+      "id": "node_1760645608421_11",
+      "data": {
+        "keyboard": {
+          "reply": [],
+          "active": "inline",
+          "inline": []
+        },
+        "parseMode": "None",
+        "recipients": {
+          "sendToSender": true,
+          "additionalIds": []
+        },
+        "messageText": "Alik"
+      },
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": {
+        "x": -208.54153722628246,
+        "y": 3598.477174921736
+      },
+      "selected": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "reactflow__edge-node_1760645488961_4-node_1760645494326_6",
+      "type": "smart-edge",
+      "style": {
+        "stroke": "#495057",
+        "strokeWidth": 1.5
+      },
+      "source": "node_1760645488961_4",
+      "target": "node_1760645494326_6",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "reactflow__edge-node_1760645494326_6-node_1760645535941_7",
+      "type": "smart-edge",
+      "style": {
+        "stroke": "#495057",
+        "strokeWidth": 1.5
+      },
+      "source": "node_1760645494326_6",
+      "target": "node_1760645535941_7",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "reactflow__edge-node_1760645535941_7-node_1760645544226_8",
+      "type": "smart-edge",
+      "style": {
+        "stroke": "#495057",
+        "strokeWidth": 1.5
+      },
+      "source": "node_1760645535941_7",
+      "target": "node_1760645544226_8",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "reactflow__edge-node_1760645494326_6-dndnode_1760645562192_0",
+      "type": "smart-edge",
+      "style": {
+        "stroke": "#495057",
+        "strokeWidth": 1.5
+      },
+      "source": "node_1760645494326_6",
+      "target": "dndnode_1760645562192_0",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "reactflow__edge-dndnode_1760645562192_0-node_1760645583238_9",
+      "type": "smart-edge",
+      "style": {
+        "stroke": "#495057",
+        "strokeWidth": 1.5
+      },
+      "source": "dndnode_1760645562192_0",
+      "target": "node_1760645583238_9",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "reactflow__edge-node_1760645583238_9-node_1760645599195_10",
+      "type": "smart-edge",
+      "style": {
+        "stroke": "#495057",
+        "strokeWidth": 1.5
+      },
+      "source": "node_1760645583238_9",
+      "target": "node_1760645599195_10",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "reactflow__edge-node_1760645599195_10-node_1760645608421_11",
+      "type": "smart-edge",
+      "style": {
+        "stroke": "#495057",
+        "strokeWidth": 1.5
+      },
+      "source": "node_1760645599195_10",
+      "target": "node_1760645608421_11",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     }
   ]
 }

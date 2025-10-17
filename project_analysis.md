@@ -1,17 +1,19 @@
 # Loyiha Tahlili Hisoboti
 
-Sana: 2025-10-12 08:36:57
+Sana: 2025-10-16 22:27:37
 
 ## 📁 Fayl Strukturasi
 
 ```
-|   |-- 📄 .env
 |   |-- 📄 .gitignore
+|   |-- 📄 Dockerfile
+|   |-- 📄 entrypoint.sh
 |   |-- 📄 env.py
 |   |-- 📄 nodes.json
 |   |-- 📄 requirements.txt
 |   |-- 📁 app/
 |   |   |-- 📄 __init__.py
+|   |   |-- 📄 config.py
 |   |   |-- 📄 main.py
 |   |   |-- 📁 handlers/
 |   |   |   |-- 📄 __init__.py
@@ -31,23 +33,11 @@ Sana: 2025-10-12 08:36:57
 |   |   |   |   |-- 📄 message_handlers.py
 |   |   |   |-- 📁 executors/
 |   |   |   |   |-- 📄 __init__.py
+|   |-- 📁 assets/
+|   |   |-- 📄 flow.json
 ```
 
 ## 📄 Muhim Fayllar Tarkibi
-
-### 📄 .env
-
-```
-# @BotFather dan olingan tokeningizni shu yerga qo'ying
-BOT_TOKEN="8416518955:AAEDFrJ60n9a_0OXT8thkJC0qJei3YtAHnY"
-
-# Sxema faylining nomi
-FLOW_FILE_PATH="nodes.json"
-
-# Webhook uchun hosting manzilingiz (masalan, ngrok yoki server IP si)
-# OXIRIDA / BO'LMASIN! Masalan: https://your-domain.com
-BASE_WEBHOOK_URL="https://dc9ab9f43490.ngrok-free.app"
-```
 
 ### 📄 .gitignore
 
@@ -230,6 +220,38 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/python
 ```
 
+### 📄 Dockerfile
+
+```
+FROM python:3.13-slim
+
+WORKDIR /code
+
+
+COPY . .
+
+RUN pip install -r requirements.txt
+
+RUN chmod +x entrypoint.sh
+
+CMD ["sh", "./entrypoint.sh"]
+
+
+```
+
+### 📄 entrypoint.sh
+
+```
+#!/bin/bash
+set -e
+
+python3 -m app.main
+
+exit $?
+
+
+```
+
 ### 📄 env.py
 
 ```py
@@ -257,94 +279,167 @@ if not BASE_WEBHOOK_URL:
 {
   "edges": [
     {
-      "id": "edge_1",
-      "source": "node_start_trigger",
-      "target": "node_show_reply_keyboard"
+      "id": "reactflow__edge-node_1760253076228_4-node_1760253095741_5",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253076228_4",
+      "target": "node_1760253095741_5",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     },
     {
-      "id": "edge_2",
-      "source": "node_profile_trigger",
-      "target": "node_profile_action"
+      "id": "reactflow__edge-node_1760253095741_5-node_1760253241263_8",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253095741_5",
+      "target": "node_1760253241263_8",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     },
     {
-      "id": "edge_3",
-      "source": "node_close_trigger",
-      "target": "node_close_action"
+      "id": "reactflow__edge-node_1760253241263_8-node_1760253131823_6",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253241263_8",
+      "target": "node_1760253131823_6",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "reactflow__edge-node_1760253131823_6-node_1760253280089_9",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253131823_6",
+      "target": "node_1760253280089_9",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "reactflow__edge-node_1760253280089_9-node_1760253161920_7",
+      "type": "smart-edge",
+      "style": { "stroke": "#495057", "strokeWidth": 1.5 },
+      "source": "node_1760253280089_9",
+      "target": "node_1760253161920_7",
+      "animated": false,
+      "sourceHandle": null,
+      "targetHandle": null
     }
   ],
   "nodes": [
     {
-      "id": "node_start_trigger",
-      "data": {
-        "filter": "command",
-        "context": {
-          "value": "/start"
-        }
-      },
-      "type": "MessageTriggerNode"
+      "id": "node_1760253076228_4",
+      "data": { "command": "/start" },
+      "type": "CommandTriggerNode",
+      "width": 320,
+      "height": 196,
+      "dragging": false,
+      "position": { "x": -967.0891191708062, "y": 1539.733718299783 },
+      "selected": false,
+      "positionAbsolute": { "x": -967.0891191708062, "y": 1539.733718299783 }
     },
     {
-      "id": "node_show_reply_keyboard",
+      "id": "node_1760253095741_5",
       "data": {
-        "buttons": [
-          [
-            {
-              "id": "btn_reply_1",
-              "text": "Mening profilim",
-              "type": "reply"
-            },
-            {
-              "id": "btn_reply_2",
-              "text": " Sozlamalar",
-              "type": "reply"
-            }
-          ],
-          [
-            {
-              "id": "btn_reply_close",
-              "text": "/close keyboard",
-              "type": "reply"
-            }
+        "keyboard": {
+          "reply": [],
+          "active": "inline",
+          "inline": [
+            [
+              {
+                "id": "btn-1760253117803",
+                "text": "inline_button",
+                "type": "callback",
+                "value": "inline_button"
+              }
+            ]
           ]
-        ],
-        "messageText": "Salom brat"
+        },
+        "parseMode": "None",
+        "recipients": { "sendToSender": true, "additionalIds": [] },
+        "messageText": "Yangi xabar"
       },
-      "type": "SendTextMessageNode"
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": { "x": -1000.4092044965785, "y": 1840.751498879408 },
+      "selected": false,
+      "positionAbsolute": { "x": -1000.4092044965785, "y": 1840.751498879408 }
     },
     {
-      "id": "node_profile_trigger",
+      "id": "node_1760253131823_6",
       "data": {
+        "keyboard": {
+          "reply": [
+            [{ "id": "btn-1760253156983", "text": "reply", "type": "reply" }]
+          ],
+          "active": "reply",
+          "inline": []
+        },
+        "parseMode": "None",
+        "recipients": { "sendToSender": true, "additionalIds": [] },
+        "messageText": "inline was clicked"
+      },
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": { "x": -992.4579436296674, "y": 2887.880940445403 },
+      "selected": false,
+      "positionAbsolute": { "x": -992.4579436296674, "y": 2887.880940445403 }
+    },
+    {
+      "id": "node_1760253161920_7",
+      "data": {
+        "keyboard": { "reply": [], "active": "inline", "inline": [] },
+        "parseMode": "None",
+        "recipients": { "sendToSender": true, "additionalIds": [] },
+        "messageText": "reply was clicked"
+      },
+      "type": "SendTextMessageNode",
+      "width": 400,
+      "height": 499,
+      "dragging": false,
+      "position": { "x": -1030.4137974107016, "y": 3818.241422432829 },
+      "selected": false,
+      "positionAbsolute": { "x": -1030.4137974107016, "y": 3818.241422432829 }
+    },
+    {
+      "id": "node_1760253241263_8",
+      "data": {
+        "value": "",
         "filter": "equals",
-        "context": {
-          "value": "Mening profilim"
+        "global": true,
+        "context": { "value": "inline_button", "global": true }
+      },
+      "type": "CallbackQueryTriggerNode",
+      "width": 320,
+      "height": 320,
+      "dragging": false,
+      "position": { "x": -984.4494448648755, "y": 2422.9288480346568 },
+      "selected": false,
+      "positionAbsolute": { "x": -984.4494448648755, "y": 2422.9288480346568 }
+    },
+    {
+      "id": "node_1760253280089_9",
+      "data": {
+        "selectedButton": {
+          "id": "btn-1760253156983",
+          "text": "reply",
+          "type": "reply"
         }
       },
-      "type": "MessageTriggerNode"
-    },
-    {
-      "id": "node_profile_action",
-      "data": {
-        "messageText": "Bu sizning profilingiz haqidagi ma'lumotlar..."
-      },
-      "type": "SendTextMessageNode"
-    },
-    {
-      "id": "node_close_trigger",
-      "data": {
-        "filter": "equals",
-        "context": {
-          "value": "/close keyboard"
-        }
-      },
-      "type": "MessageTriggerNode"
-    },
-    {
-      "id": "node_close_action",
-      "data": {
-        "buttons": [],
-        "messageText": " Klaviatura yopildi."
-      },
-      "type": "SendTextMessageNode"
+      "type": "ReplyButtonTriggerNode",
+      "width": 320,
+      "height": 148,
+      "dragging": false,
+      "position": { "x": -981.3086619353467, "y": 3558.694818373478 },
+      "selected": true,
+      "positionAbsolute": { "x": -981.3086619353467, "y": 3558.694818373478 }
     }
   ]
 }
@@ -354,11 +449,9 @@ if not BASE_WEBHOOK_URL:
 ### 📄 requirements.txt
 
 ```
-aiogram==3.1.1
-fastapi==0.104.1
-uvicorn==0.24.0.post1
-python-dotenv==1.0.0
-geopy==2.4.0
+aiogram
+python-dotenv
+
 ```
 
 ### 📄 app/__init__.py
@@ -367,69 +460,72 @@ geopy==2.4.0
 
 ```
 
+### 📄 app/config.py
+
+```py
+import os
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if BOT_TOKEN is None:
+    raise Exception("BOT_TOKEN not found from env")
+FLOW_FILE_PATH = "assets/flow.json"
+
+```
+
 ### 📄 app/main.py
 
 ```py
-# app/main.py
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from typing import Optional
 
-from fastapi import FastAPI, Request
-from aiogram import Bot, Dispatcher, types
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.memory import MemoryStorage
 
-from env import BASE_WEBHOOK_URL, BOT_TOKEN, FLOW_FILE_PATH
+from app.config import BOT_TOKEN, FLOW_FILE_PATH
 from app.engine.flow_controller import FlowController
-from app.handlers.common import router as common_router
-
-# --- Webhook Sozlamalari ---
-WEBHOOK_PATH = f"/bot/{BOT_TOKEN}"
-WEBHOOK_URL = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
-
-print(f"🔍 ~  ~ app/main.py:16 ~ {WEBHOOK_URL}:");
-
-# ----------------------------
+from app.handlers.common import router as bot_router
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    default_properties = DefaultBotProperties(parse_mode="HTML")
-    bot = Bot(token=BOT_TOKEN, default=default_properties)
-    controller = FlowController(bot=bot, schema_path=FLOW_FILE_PATH)
-    dp = Dispatcher(storage=MemoryStorage(), controller=controller)
-    dp.include_router(common_router)
-    app.state.bot = bot
-    app.state.dispatcher = dp
-    await bot.set_webhook(url=WEBHOOK_URL)
-    logging.info(f"Webhook o'rnatildi: {WEBHOOK_URL}")
-    yield
-    logging.info("Webhook o'chirilmoqda...")
-    await bot.delete_webhook()
-    await bot.session.close()
+
+async def main() -> None:
+    logging.info("Ilova ishga tushmoqda (polling rejim)...")
+
+    bot: Optional[Bot] = None
+    try:
+        default_properties = DefaultBotProperties(parse_mode="HTML")
+        bot = Bot(token=str(BOT_TOKEN), default=default_properties)
+        controller = FlowController(bot=bot, schema_path=FLOW_FILE_PATH)
+
+        dp = Dispatcher(storage=MemoryStorage(), controller=controller)
+        dp.include_router(bot_router)
+
+        await dp.start_polling(bot)
+
+    except asyncio.CancelledError:
+        logging.info("Polling bekor qilindi.")
+        raise
+    except Exception as exc:
+        logging.critical(f"Kritik xato: {exc}", exc_info=True)
+    finally:
+        if bot is not None:
+            try:
+                await bot.session.close()
+                logging.info("Bot sessiyasi yopildi.")
+            except Exception as e:
+                logging.warning(f"Bot sessiyasini yopishda xatolik: {e}", exc_info=True)
 
 
-# ---- MUHIM QATOR ----
-# Uvicorn aynan shu "app" nomli o'zgaruvchini qidiradi
-app = FastAPI(lifespan=lifespan)
-# --------------------
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Ilova to'xtatildi (user interrupt).")
 
-
-@app.get("/")
-async def welcome():
-    return {"message": "Welcome to the Bot API!"}
-
-
-@app.post(WEBHOOK_PATH)
-async def bot_webhook(request: Request):
-    dispatcher: Dispatcher = request.app.state.dispatcher
-    bot: Bot = request.app.state.bot
-    update = types.Update(**(await request.json()))
-    await dispatcher.feed_update(bot=bot, update=update)
-    return {"status": "ok"}
 ```
 
 ### 📄 app/handlers/__init__.py
@@ -476,16 +572,16 @@ async def initial_handler(update: Message | CallbackQuery, controller: FlowContr
 
 import logging
 import re
-from typing import Dict, Any
+from typing import Any, Dict
 
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery
-from geopy.distance import geodesic # pip install geopy
+from aiogram.types import CallbackQuery, Message
+from geopy.distance import geodesic  # pip install geopy
 
+from .executors import NodeExecutor
 from .fsm import FlowState
 from .loader import SchemaLoader
-from .executors import NodeExecutor
 from .state_manager import StateManager
 
 
@@ -502,11 +598,11 @@ class FlowController:
         state_manager = StateManager(fsm_context)
         flow_context = await fsm_context.get_data()
         chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
-        
+
         if isinstance(event, Message):
-            flow_context['message'] = event
+            flow_context["message"] = event
         elif isinstance(event, CallbackQuery):
-            flow_context['callback_query'] = event
+            flow_context["callback_query"] = event
 
         self.logger.info(f"CHAT_ID={chat_id}: Event qabul qilindi.")
 
@@ -515,7 +611,9 @@ class FlowController:
         # 1-NAVBAT: Global triggerlarni tekshiramiz
         for trigger_node in self.schema.global_triggers:
             if self._check_trigger(trigger_node, event):
-                self.logger.info(f"CHAT_ID={chat_id}: GLOBAL trigger ishga tushdi ({trigger_node['id']}). Joriy holat bekor qilinmoqda.")
+                self.logger.info(
+                    f"CHAT_ID={chat_id}: GLOBAL trigger ishga tushdi ({trigger_node['id']}). Joriy holat bekor qilinmoqda."
+                )
                 await fsm_context.clear()  # Joriy state'ni bekor qilamiz
                 await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
                 return
@@ -533,24 +631,45 @@ class FlowController:
 
             possible_next_nodes = self.schema.get_next_nodes(paused_node_id)
             for trigger_node in possible_next_nodes:
-                if "Trigger" in trigger_node.get("type", "") and self._check_trigger(trigger_node, event):
-                    self.logger.info(f"CHAT_ID={chat_id}: Kutilgan trigger ({trigger_node['id']}) ishga tushdi.")
-                    await self._traverse(trigger_node, chat_id, fsm_context, flow_context, return_to_node_id=paused_node_id)
+                if "Trigger" in trigger_node.get("type", "") and self._check_trigger(
+                    trigger_node, event
+                ):
+                    self.logger.info(
+                        f"CHAT_ID={chat_id}: Kutilgan trigger ({trigger_node['id']}) ishga tushdi."
+                    )
+                    await self._traverse(
+                        trigger_node,
+                        chat_id,
+                        fsm_context,
+                        flow_context,
+                        return_to_node_id=paused_node_id,
+                    )
                     return
-            self.logger.debug(f"CHAT_ID={chat_id}: Event kutilgan triggerlarga mos kelmadi.")
+            self.logger.debug(
+                f"CHAT_ID={chat_id}: Event kutilgan triggerlarga mos kelmadi."
+            )
             return
 
         # 3-NAVBAT: Root (boshlang'ich) triggerlarni tekshiramiz (agar holat bo'sh bo'lsa)
         for trigger_node in self.schema.root_triggers:
             if self._check_trigger(trigger_node, event):
-                self.logger.info(f"CHAT_ID={chat_id}: Yangi ssenariy boshlandi (Root Trigger: {trigger_node['id']})")
+                self.logger.info(
+                    f"CHAT_ID={chat_id}: Yangi ssenariy boshlandi (Root Trigger: {trigger_node['id']})"
+                )
                 await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
                 return
-    
+
     # Qolgan metodlar (_traverse, _check_trigger, _check_radius) o'zgarishsiz qoladi.
     # Ularni oldingi javobdagi kabi qoldirishingiz mumkin. Quyida ularning to'liq kodi keltirilgan.
 
-    async def _traverse(self, start_node: dict, chat_id: int, fsm_context: FSMContext, flow_context: dict, return_to_node_id: str | None = None):
+    async def _traverse(
+        self,
+        start_node: dict,
+        chat_id: int,
+        fsm_context: FSMContext,
+        flow_context: dict,
+        return_to_node_id: str | None = None,
+    ):
         state_manager = StateManager(fsm_context)
         nodes_to_process = [start_node]
         last_processed_node_id = start_node["id"]
@@ -561,68 +680,120 @@ class FlowController:
                 await self.executor.execute(current_node, chat_id, flow_context)
                 last_processed_node_id = current_node["id"]
             next_nodes = self.schema.get_next_nodes(current_node["id"])
-            if not next_nodes: continue
+            if not next_nodes:
+                continue
             if all("Trigger" in n.get("type", "") for n in next_nodes):
-                self.logger.info(f"CHAT_ID={chat_id}: Harakat bajarildi ({last_processed_node_id}), trigger(lar)ni kutish uchun pauza.")
-                await state_manager.set_pause_after_node(last_processed_node_id, flow_context)
+                self.logger.info(
+                    f"CHAT_ID={chat_id}: Harakat bajarildi ({last_processed_node_id}), trigger(lar)ni kutish uchun pauza."
+                )
+                await state_manager.set_pause_after_node(
+                    last_processed_node_id, flow_context
+                )
                 return
             nodes_to_process.extend(next_nodes)
         if return_to_node_id:
-            self.logger.info(f"CHAT_ID={chat_id}: Harakatlar shoxi tugadi. Avvalgi kutish holatiga qaytilmoqda (Node ID: {return_to_node_id}).")
+            self.logger.info(
+                f"CHAT_ID={chat_id}: Harakatlar shoxi tugadi. Avvalgi kutish holatiga qaytilmoqda (Node ID: {return_to_node_id})."
+            )
             await state_manager.set_pause_after_node(return_to_node_id, flow_context)
         else:
-            self.logger.info(f"CHAT_ID={chat_id}: Ssenariy shoxi tugadi. Holat tozalanmoqda.")
+            self.logger.info(
+                f"CHAT_ID={chat_id}: Ssenariy shoxi tugadi. Holat tozalanmoqda."
+            )
             await state_manager.clear_state()
 
     def _check_radius(self, event_location, radius_context: Dict[str, Any]) -> bool:
         try:
-            center_lat, center_lng, radius_km = float(radius_context.get("lat")), float(radius_context.get("lng")), float(radius_context.get("km"))
-            user_location, center_point = (event_location.latitude, event_location.longitude), (center_lat, center_lng)
+            center_lat, center_lng, radius_km = (
+                float(radius_context.get("lat")),
+                float(radius_context.get("lng")),
+                float(radius_context.get("km")),
+            )
+            user_location, center_point = (
+                event_location.latitude,
+                event_location.longitude,
+            ), (center_lat, center_lng)
             distance = geodesic(user_location, center_point).kilometers
             return distance <= radius_km
-        except (ValueError, TypeError, AttributeError): return False
+        except (ValueError, TypeError, AttributeError):
+            return False
 
-    def _check_trigger(self, trigger_node: dict, event: Message | CallbackQuery) -> bool:
+    def _check_trigger(
+        self, trigger_node: dict, event: Message | CallbackQuery
+    ) -> bool:
         node_type, data = trigger_node.get("type"), trigger_node.get("data", {})
         if node_type == "CommandTriggerNode" and isinstance(event, Message):
             command = data.get("command")
             return command and event.text and event.text.startswith(command)
         if node_type == "MessageTriggerNode" and isinstance(event, Message):
             expected_type = data.get("type")
-            if expected_type and expected_type != "any" and expected_type != event.content_type: return False
+            if (
+                expected_type
+                and expected_type != "any"
+                and expected_type != event.content_type
+            ):
+                return False
             filt, context = data.get("filter"), data.get("context", {})
-            if not filt or filt == "any": return True
-            if filt in ["equals", "contains", "starts_with", "regex", "command"] and event.text:
+            if not filt or filt == "any":
+                return True
+            if (
+                filt in ["equals", "contains", "starts_with", "regex", "command"]
+                and event.text
+            ):
                 value = context.get("value")
-                if value is None: return False
-                if filt == "equals": return event.text == value
-                if filt == "contains": return value in event.text
-                if filt in ["starts_with", "command"]: return event.text.startswith(value)
+                if value is None:
+                    return False
+                if filt == "equals":
+                    return event.text == value
+                if filt == "contains":
+                    return value in event.text
+                if filt in ["starts_with", "command"]:
+                    return event.text.startswith(value)
                 if filt == "regex":
-                    try: return bool(re.match(value, event.text))
-                    except re.error: return False
+                    try:
+                        return bool(re.match(value, event.text))
+                    except re.error:
+                        return False
             return False
         if node_type == "ReplyButtonTriggerNode" and isinstance(event, Message):
             selected_button = data.get("selectedButton", {})
-            btn_type, btn_text = selected_button.get("type"), selected_button.get("text")
-            if btn_type == "reply" and event.text == btn_text: return True
-            if btn_type == "request_contact" and event.contact: return True
-            if btn_type == "request_location" and event.location: return True
+            btn_type, btn_text = selected_button.get("type"), selected_button.get(
+                "text"
+            )
+            if btn_type == "reply" and event.text == btn_text:
+                return True
+            if btn_type == "request_contact" and event.contact:
+                return True
+            if btn_type == "request_location" and event.location:
+                return True
             return False
-        if node_type in ["CallbackButtonTriggerNode", "CallbackQueryTriggerNode"] and isinstance(event, CallbackQuery):
-            if not event.data: return False
-            if node_type == "CallbackButtonTriggerNode": return event.data in data.get("selectedCallbacks", [])
+        if node_type in [
+            "CallbackButtonTriggerNode",
+            "CallbackQueryTriggerNode",
+        ] and isinstance(event, CallbackQuery):
+            if not event.data:
+                return False
+            if node_type == "CallbackButtonTriggerNode":
+                return event.data in data.get("selectedCallbacks", [])
             filt, value = data.get("filter"), data.get("context", {}).get("value")
-            if filt == "any": return True
-            if not filt or not value: return False
-            if filt == "equals": return event.data == value
-            if filt == "contains": return value in event.data
-            if filt == "starts_with": return event.data.startswith(value)
+            if filt == "any":
+                return True
+            if not filt or not value:
+                return False
+            if filt == "equals":
+                return event.data == value
+            if filt == "contains":
+                return value in event.data
+            if filt == "starts_with":
+                return event.data.startswith(value)
             if filt == "regex":
-                try: return bool(re.match(value, event.data))
-                except re.error: return False
+                try:
+                    return bool(re.match(value, event.data))
+                except re.error:
+                    return False
             return False
         return False
+
 ```
 
 ### 📄 app/engine/fsm.py
@@ -971,5 +1142,205 @@ class NodeExecutor:
             self.logger.info(f"Node (ID: {node.get('id')}) muvaffaqiyatli bajarildi.")
         except Exception as e:
             self.logger.error(f"Node (ID: {node.get('id')}, Turi: {node_type}) bajarilishida kutilmagan xatolik: {e}", exc_info=True)
+```
+
+### 📄 assets/flow.json
+
+```json
+{
+  "nodes": [
+    {
+      "id": "trigger_start_command",
+      "type": "CommandTriggerNode",
+      "position": { "x": 100, "y": 100 },
+      "data": { "command": "/start" }
+    },
+    {
+      "id": "action_welcome_message",
+      "type": "SendTextMessageNode",
+      "position": { "x": 100, "y": 300 },
+      "data": {
+        "messageText": "Assalomu alaykum! Bizning restoranimizga xush kelibsiz. Nima bilan yordam berishim mumkin?",
+        "recipients": { "sendToSender": true },
+        "keyboard": {
+          "inline": [
+            [
+              { "text": "🍽 Menu", "type": "callback", "value": "show_menu" },
+              { "text": "💳 To'lov", "type": "callback", "value": "payment_options" }
+            ],
+            [
+              { "text": "❓ Yordam", "type": "callback", "value": "support" },
+              { "text": "ℹ️ Ma'lumot", "type": "callback", "value": "about_us" }
+            ]
+          ],
+          "active": "inline"
+        }
+      }
+    },
+    {
+      "id": "trigger_show_menu_callback",
+      "type": "CallbackQueryTriggerNode",
+      "position": { "x": -200, "y": 600 },
+      "data": { "filter": "equals", "context": { "value": "show_menu" } }
+    },
+    {
+      "id": "action_send_menu",
+      "type": "SendTextMessageNode",
+      "position": { "x": -200, "y": 800 },
+      "data": {
+        "messageText": "Bizning menyu:\n\n1. Taom 1 - 50 000 so'm\n2. Taom 2 - 75 000 so'm\n3. Ichimlik 1 - 15 000 so'm\n\nQaysi biriga buyurtma bermoqchisiz?",
+        "recipients": { "sendToSender": true },
+        "keyboard": {
+          "inline": [
+            [{ "text": "🛒 Buyurtma berish", "type": "callback", "value": "place_order" }],
+            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
+          ],
+          "active": "inline"
+        }
+      }
+    },
+    {
+      "id": "trigger_payment_options_callback",
+      "type": "CallbackQueryTriggerNode",
+      "position": { "x": 200, "y": 600 },
+      "data": { "filter": "equals", "context": { "value": "payment_options" } }
+    },
+    {
+      "id": "action_send_payment_options",
+      "type": "SendTextMessageNode",
+      "position": { "x": 200, "y": 800 },
+      "data": {
+        "messageText": "To'lov usullari:\n\n1. Naqd pul\n2. Karta orqali (terminal)\n3. Click/Payme (tez orada)\n\nQaysi birini afzal ko'rasiz?",
+        "recipients": { "sendToSender": true },
+        "keyboard": {
+          "inline": [
+            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
+          ],
+          "active": "inline"
+        }
+      }
+    },
+    {
+      "id": "trigger_support_callback",
+      "type": "CallbackQueryTriggerNode",
+      "position": { "x": 600, "y": 600 },
+      "data": { "filter": "equals", "context": { "value": "support" } }
+    },
+    {
+      "id": "action_send_support_info",
+      "type": "SendTextMessageNode",
+      "position": { "x": 600, "y": 800 },
+      "data": {
+        "messageText": "Yordam bo'limiga xush kelibsiz. Savolingizni yozing, tez orada operatorlarimiz javob berishadi.",
+        "recipients": { "sendToSender": true },
+        "keyboard": {
+          "inline": [
+            [{ "text": "📞 Operator bilan bog'lanish", "type": "callback", "value": "contact_operator" }],
+            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
+          ],
+          "active": "inline"
+        }
+      }
+    },
+    {
+      "id": "trigger_about_us_callback",
+      "type": "CallbackQueryTriggerNode",
+      "position": { "x": 1000, "y": 600 },
+      "data": { "filter": "equals", "context": { "value": "about_us" } }
+    },
+    {
+      "id": "action_send_about_us",
+      "type": "SendTextMessageNode",
+      "position": { "x": 1000, "y": 800 },
+      "data": {
+        "messageText": "Bizning restoranimiz 2005 yildan buyon sizning xizmatingizda! Eng mazali taomlar va yuqori darajadagi xizmatni taklif etamiz. Manzilimiz: Toshkent sh. Buyuk Ipak Yo'li k. 15. Ish vaqti: 09:00 - 23:00.",
+        "recipients": { "sendToSender": true },
+        "keyboard": {
+          "inline": [
+            [{ "text": "⬅️ Orqaga", "type": "callback", "value": "back_to_main" }]
+          ],
+          "active": "inline"
+        }
+      }
+    },
+    {
+      "id": "trigger_back_to_main",
+      "type": "CallbackQueryTriggerNode",
+      "position": { "x": 400, "y": 1000 },
+      "data": { "filter": "equals", "context": { "value": "back_to_main" } }
+    },
+    {
+      "id": "trigger_place_order_callback",
+      "type": "CallbackQueryTriggerNode",
+      "position": { "x": -200, "y": 1000 },
+      "data": { "filter": "equals", "context": { "value": "place_order" } }
+    },
+    {
+      "id": "action_prompt_order",
+      "type": "SendTextMessageNode",
+      "position": { "x": -200, "y": 1200 },
+      "data": {
+        "messageText": "Iltimos, buyurtma bermoqchi bo'lgan taom yoki ichimlik nomini va miqdorini yozing (masalan: Taom 1 - 2ta, Ichimlik 1 - 1ta):",
+        "recipients": { "sendToSender": true }
+      }
+    },
+    {
+      "id": "trigger_receive_order",
+      "type": "MessageTriggerNode",
+      "position": { "x": -200, "y": 1400 },
+      "data": { "type": "text" }
+    },
+    {
+      "id": "action_process_order",
+      "type": "CustomCodeNode",
+      "position": { "x": -200, "y": 1600 },
+      "data": {
+        "pythonCode": "order_text = message.text\\n# Buyurtmani qayta ishlash logikasi bu yerda bo\\'ladi\\n# Masalan, buyurtmani bazaga saqlash yoki operatorga yuborish\\nawait message.answer(f\\\"Buyurtmangiz qabul qilindi: '{order_text}'. Tez orada siz bilan bog'lanamiz.\\\")"
+      }
+    },
+    {
+      "id": "trigger_contact_operator_callback",
+      "type": "CallbackQueryTriggerNode",
+      "position": { "x": 600, "y": 1000 },
+      "data": { "filter": "equals", "context": { "value": "contact_operator" } }
+    },
+    {
+      "id": "action_contact_operator",
+      "type": "SendTextMessageNode",
+      "position": { "x": 600, "y": 1200 },
+      "data": {
+        "messageText": "Operatorimiz tez orada siz bilan bog'lanadi. Iltimos kuting.",
+        "recipients": { "sendToSender": true }
+      }
+    }
+  ],
+  "edges": [
+    { "source": "trigger_start_command", "target": "action_welcome_message", "id": "edge_1", "type": "smart-edge" },
+    { "source": "action_welcome_message", "target": "trigger_show_menu_callback", "id": "edge_2", "type": "smart-edge" },
+    { "source": "action_welcome_message", "target": "trigger_payment_options_callback", "id": "edge_3", "type": "smart-edge" },
+    { "source": "action_welcome_message", "target": "trigger_support_callback", "id": "edge_4", "type": "smart-edge" },
+    { "source": "action_welcome_message", "target": "trigger_about_us_callback", "id": "edge_5", "type": "smart-edge" },
+
+    { "source": "trigger_show_menu_callback", "target": "action_send_menu", "id": "edge_6", "type": "smart-edge" },
+    { "source": "trigger_payment_options_callback", "target": "action_send_payment_options", "id": "edge_7", "type": "smart-edge" },
+    { "source": "trigger_support_callback", "target": "action_send_support_info", "id": "edge_8", "type": "smart-edge" },
+    { "source": "trigger_about_us_callback", "target": "action_send_about_us", "id": "edge_9", "type": "smart-edge" },
+
+    { "source": "action_send_menu", "target": "trigger_back_to_main", "id": "edge_10", "type": "smart-edge" },
+    { "source": "action_send_payment_options", "target": "trigger_back_to_main", "id": "edge_11", "type": "smart-edge" },
+    { "source": "action_send_support_info", "target": "trigger_back_to_main", "id": "edge_12", "type": "smart-edge" },
+    { "source": "action_send_about_us", "target": "trigger_back_to_main", "id": "edge_13", "type": "smart-edge" },
+
+    { "source": "action_send_menu", "target": "trigger_place_order_callback", "id": "edge_14", "type": "smart-edge" },
+    { "source": "trigger_place_order_callback", "target": "action_prompt_order", "id": "edge_15", "type": "smart-edge" },
+    { "source": "action_prompt_order", "target": "trigger_receive_order", "id": "edge_16", "type": "smart-edge" },
+    { "source": "trigger_receive_order", "target": "action_process_order", "id": "edge_17", "type": "smart-edge" },
+
+    { "source": "trigger_back_to_main", "target": "action_welcome_message", "id": "edge_18", "type": "smart-edge" },
+
+    { "source": "action_send_support_info", "target": "trigger_contact_operator_callback", "id": "edge_19", "type": "smart-edge" },
+    { "source": "trigger_contact_operator_callback", "target": "action_contact_operator", "id": "edge_20", "type": "smart-edge" }
+  ]
+}
 ```
 

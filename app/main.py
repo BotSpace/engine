@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from app.config import BOT_TOKEN, FLOW_FILE_PATH
+from env import BOT_TOKEN, FLOW_FILE_PATH
 from app.engine.flow_controller import FlowController
 from app.handlers.common import router as bot_router
 

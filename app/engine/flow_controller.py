@@ -47,7 +47,7 @@ class FlowController:
                 await fsm_context.clear()  # Joriy state'ni bekor qilamiz
                 await self._traverse(trigger_node, chat_id, fsm_context, flow_context)
                 return
-
+            
         # Agar global trigger topilmasa, holatga asoslangan mantiqni davom ettiramiz
         current_state = await fsm_context.get_state()
         self.logger.info(f"CHAT_ID={chat_id}: Joriy holat: {current_state}")
